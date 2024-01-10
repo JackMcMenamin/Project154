@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Processor</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .image-container { margin-top: 20px; }
+        img { max-width: 100%; max-height: 400px; }
+        .before-after { display: flex; justify-content: space-around; }
+
+        .histogram-container {
+            width: 80%;
+            margin: auto;
+        }
+
+        .image-container {
+            margin-top: 20px;
+            text-align: center; /* Center align the content */
+        }
+
+        img {
+            max-width: 100%;
+            max-height: 400px;
+            display: block; /* Block display to fit the width of the container */
+            margin: 0 auto; /* Auto margins for horizontal centering */
+        }
+        
+        canvas {
+            /* Add padding to ensure the axis labels are not cut off */
+            padding-top: 10px;
+            padding-left: 10px; /* Adjust the value as needed */
+            padding-right: 10px;
+            padding-bottom: 10px; /* Adjust the value as needed */
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            display: block;
+        }
+
+        .metrics-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px; /* Adjust as needed to move down */
+        }
+        
+        .metrics-content {
+            background-color: #f8f8f8; /* Optional: for better visibility */
+            border: 1px solid #ccc; /* Optional: for better visibility */
+            padding: 20px;
+            text-align: center; /* Center align the text */
+            width: 80%; /* Adjust as needed */
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Image Processor</h1>
+    <form id="upload-form" action="http://localhost:5000/process-image" method="post" enctype="multipart/form-data">
+        <input type="file" name="image" id="file-input" accept="image/*" required>
+        <button type="submit">Process Image</button>
+    </form>
+    
+    <div class="before-after">
+        <div class="image-container">
+            <h2>Before</h2>
+            <img id="before-image" src="#" alt="Before image will be displayed here">
+            <canvas id="original-histogram" width="512" height="200"></canvas>
+        </div>
+
+        <div class="metrics-container">
+            <div id="metrics" class="metrics-content"></div>
+        </div>
+
+        <div class="image-container">
+            <h2>After</h2>
+            <img id="after-image" src="#" alt="After image will be displayed here">
+            <canvas id="processed-histogram" width="512" height="200"></canvas>
+        </div>
+    </div>    
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('upload-form');
+            const beforeImage = document.getElementById('before-image');
+            const afterImage = document.getElementById('after-image');
+    
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+    
+                const formData = new FormData();
+                const fileInput = document.getElementById('file-input');
+    
+                formData.append('image', fileInput.files[0]);
+    
+                fetch('http://localhost:5000/process-image', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                console.log("Original image filename:", data.original);
+                    console.log("Processed image filename:", data.processed);
+                    const originalImageUrl = `/static/uploads/${data.original}`;
+                    const processedImageUrl = `/static/processed/${data.processed}`;
+
+                    beforeImage.src = originalImageUrl;
+                    afterImage.src = processedImageUrl;
+
+                    drawHistogram('original-histogram', data.original_histogram);
+                    drawHistogram('processed-histogram', data.processed_histogram);
+
+                    // Display metrics on the frontend
+                    const metricsHtml = `
+                    <div>
+                        <strong>Beam Classification:</strong> ${data.beam_classification}<br>
+                        <strong>Blob Area:</strong> ${data.blob_area} pixels<br>
+                        <strong>Blob Center:</strong> (${data.blob_center[0]}, ${data.blob_center[1]})<br>
+                    </div>
+                `;
+                
+                document.getElementById('metrics').innerHTML = metricsHtml;
+                })
+                .catch(error => console.error('Error:', error));
+            });
+
+            function drawHistogram(canvasId, histogramData) {
+                const canvas = document.getElementById(canvasId);
+                const ctx = canvas.getContext('2d');
+                const padding = {top: 30, right: 30, bottom: 20, left: 30}; // Adding padding object for clarity
+                const width = (canvas.width - padding.left - padding.right) / histogramData.length;
+                const heightScale = Math.max(...histogramData) / (canvas.height - padding.top - padding.bottom);
+            
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#000';
+            
+                // Draw the histogram bars with adjusted height scale and padding
+                histogramData.forEach((count, i) => {
+                    const x = i * width + padding.left;
+                    const height = count / heightScale;
+                    ctx.fillRect(x, canvas.height - padding.bottom - height, width, height);
+                });
+            
+                // Draw the Y-axis with adjusted padding
+                ctx.beginPath();
+                ctx.moveTo(padding.left, padding.top);
+                ctx.lineTo(padding.left, canvas.height - padding.bottom);
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+            
+                // Draw the X-axis with adjusted padding
+                ctx.beginPath();
+                ctx.moveTo(padding.left, canvas.height - padding.bottom);
+                ctx.lineTo(canvas.width - padding.right, canvas.height - padding.bottom);
+                ctx.stroke();
+            
+                // Add Y-axis labels with adjusted padding
+                const maxCount = Math.max(...histogramData);
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                for (let i = 0; i <= maxCount; i += maxCount / 4) {
+                    const y = canvas.height - padding.bottom - (i / heightScale);
+                    ctx.fillText(i.toFixed(0), padding.left - 5, y);
+                }
+            
+                // Add X-axis labels with adjusted padding
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                for (let i = 0; i < histogramData.length; i += histogramData.length / 4) {
+                    const x = i * width + padding.left;
+                    ctx.fillText(i.toFixed(0), x, canvas.height - padding.bottom + 5);
+                }
+            }   
+
+        });
+    </script>
+    
+</body>
+</html>
