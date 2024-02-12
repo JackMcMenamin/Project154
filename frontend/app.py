@@ -53,34 +53,35 @@ def process_image_endpoint():
 
     app.logger.debug(f'Saving uploaded image to: {converted_image_path}')
 
-    # Process the image and get the path of the processed image
-    processed_image_path = process_image(converted_image_path)
+    # Process the image and get the processing results
+    processing_results = process_image(converted_image_path)
+    processed_image_path = processing_results['path']  # This is the path without the outline
+
+    # Now, we update the processed_image_path with the outline image path
+    if 'outline_image' in processing_results and processing_results['outline_image']:
+        processed_image_path = os.path.join(processed_dir, processing_results['outline_image'])
+
     app.logger.debug(f'Processed image saved to: {processed_image_path}')
 
-    # After saving the original image and before processing it
-    original_histogram = generate_histogram(converted_image_path)  # Get histogram for the original image
+    # After saving the original image and before returning the response
+    original_histogram = generate_histogram(converted_image_path)
+    processed_histogram = generate_histogram(processed_image_path)
 
-    # Process the image and get the path of the processed image
-    processing_results = process_image(converted_image_path)
-    processed_image_path = processing_results['path']
-
-    # After processing the image and before returning the response
-    processed_histogram = generate_histogram(processed_image_path)  # Get histogram for the processed image
-
-    # After processing the image and generating histograms
+    # Prepare the response with the path of the image with the outline
     response = jsonify({
         'original': os.path.basename(converted_image_path),
-        'processed': os.path.basename(processed_image_path),  # Note: this uses the path from the dictionary
+        'processed': os.path.basename(processed_image_path),  # Updated to use the outline image
         'original_histogram': original_histogram,
         'processed_histogram': processed_histogram,
         # Metrics
         'beam_classification': processing_results['beam_classification'],
         'blob_area': processing_results['blob_area'],
         'blob_center': processing_results['blob_center'] if processing_results['blob_center'] else "Not applicable",
-        'white_area_ratio':round(processing_results['white_area_ratio'], 2)
+        'white_area_ratio': round(processing_results['white_area_ratio'], 2)
     })
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
+
 
 def process_image(image_path):
     app.logger.debug(f'Starting to process image: {image_path}')
@@ -173,14 +174,59 @@ def process_image(image_path):
     total_pixels = image.size
     white_area_ratio = (white_pixels / total_pixels) * 100
     print(white_area_ratio)
+    
+    # Call the new function to draw the blob outline
+    outline_image_path = draw_blob_outline(image_path, processed_image_path)
 
     return {
         'path': os.path.join('processed', processed_image_filename),
         'beam_classification': beam_classification,
         'blob_area': white_pixels if beam_classification == 'normal beam' else None,
         'blob_center': blob_center if beam_classification == 'normal beam' else None,
-        'white_area_ratio': white_area_ratio
+        'white_area_ratio': white_area_ratio,
+        'outline_image': os.path.basename(outline_image_path) if outline_image_path else None
     }
+    
+def draw_blob_outline(image_path, processed_image_path):
+    app.logger.debug(f'Starting to draw outline on image: {processed_image_path}')
+
+    # Load the processed image
+    image = cv2.imread(processed_image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        app.logger.error(f"Error loading processed image from {processed_image_path}")
+        return None
+
+    # First, dilate the image to close the gaps
+    kernel_dilate = np.ones((15, 15), np.uint8)
+    dilated_image = cv2.dilate(image, kernel_dilate, iterations=2)
+
+    # Then, erode the dilated image to make the outline tighter
+    kernel_erode = np.ones((3, 3), np.uint8)
+    eroded_image = cv2.erode(dilated_image, kernel_erode, iterations=1)
+
+    # Find contours on the eroded image
+    contours, hierarchy = cv2.findContours(eroded_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Load the original processed image in color to draw the red outline
+    color_image = cv2.imread(processed_image_path)
+
+    # Simplify contours before drawing them
+    simplified_contours = []
+    for contour in contours:
+        epsilon = 0.01 * cv2.arcLength(contour, True)
+        simplified_contour = cv2.approxPolyDP(contour, epsilon, True)
+        simplified_contours.append(simplified_contour)
+
+    # Draw the simplified contours
+    cv2.drawContours(color_image, simplified_contours, -1, (0, 0, 255), 2)
+
+    # Save the image with the red outline
+    outline_image_filename = os.path.splitext(os.path.basename(processed_image_path))[0] + '_tight_outline.png'
+    outline_image_path = os.path.join(processed_dir, outline_image_filename)
+    cv2.imwrite(outline_image_path, color_image)
+    app.logger.debug(f'Image with tighter blob outline saved to {outline_image_path}')
+
+    return outline_image_path
 
 
 @app.route('/processed/<filename>')
