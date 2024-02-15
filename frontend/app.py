@@ -8,7 +8,7 @@ import logging
 from PIL import Image
 from flask import jsonify
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG) 
 
 # Define the base directory of the Flask application
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

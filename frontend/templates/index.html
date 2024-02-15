@@ -5,54 +5,24 @@
     <title>Image Processor</title>
     <style>
         body { font-family: Arial, sans-serif; }
-        .image-container { margin-top: 20px; }
+        .row { display: flex; justify-content: center; align-items: flex-start; margin-top: 20px; }
+        .column { flex: 1; padding: 5px; text-align: center; }
         img { max-width: 100%; max-height: 400px; }
-        .before-after { display: flex; justify-content: space-around; }
-
-        .histogram-container {
-            width: 80%;
-            margin: auto;
+        canvas { 
+            padding: 10px; 
+            background-color: #f8f8f8; 
+            border: 1px solid #ccc; 
+            margin-top: 10px; 
+            display: block; 
+            width: 100%;
+            height: 200px;
         }
-
-        .image-container {
-            margin-top: 20px;
-            text-align: center; /* Center align the content */
-        }
-
-        img {
-            max-width: 100%;
-            max-height: 400px;
-            display: block; /* Block display to fit the width of the container */
-            margin: 0 auto; /* Auto margins for horizontal centering */
-        }
-        
-        canvas {
-            /* Add padding to ensure the axis labels are not cut off */
-            padding-top: 10px;
-            padding-left: 10px; /* Adjust the value as needed */
-            padding-right: 10px;
-            padding-bottom: 10px; /* Adjust the value as needed */
+        .metrics-content {
             background-color: #f8f8f8;
             border: 1px solid #ccc;
-            margin-top: 10px;
-            display: block;
-        }
-
-        .metrics-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-top: 20px; /* Adjust as needed to move down */
-        }
-        
-        .metrics-content {
-            background-color: #f8f8f8; /* Optional: for better visibility */
-            border: 1px solid #ccc; /* Optional: for better visibility */
             padding: 20px;
-            text-align: center; /* Center align the text */
-            width: 80%; /* Adjust as needed */
+            text-align: center;
         }
-
     </style>
 </head>
 <body>
@@ -62,23 +32,33 @@
         <button type="submit">Process Image</button>
     </form>
     
-    <div class="before-after">
-        <div class="image-container">
+    <!-- Before row -->
+    <div class="row">
+        <div class="column">
             <h2>Before</h2>
             <img id="before-image" src="#" alt="Before image will be displayed here">
-            <canvas id="original-histogram" width="512" height="200"></canvas>
         </div>
-
-        <div class="metrics-container">
-            <div id="metrics" class="metrics-content"></div>
+        <div class="column">
+            <div id="before-metrics" class="metrics-content"></div>
         </div>
+        <div class="column">
+            <canvas id="original-histogram"></canvas>
+        </div>
+    </div>
 
-        <div class="image-container">
+    <!-- After row -->
+    <div class="row">
+        <div class="column">
             <h2>After</h2>
             <img id="after-image" src="#" alt="After image will be displayed here">
-            <canvas id="processed-histogram" width="512" height="200"></canvas>
         </div>
-    </div>    
+        <div class="column">
+            <div id="after-metrics" class="metrics-content"></div>
+        </div>
+        <div class="column">
+            <canvas id="processed-histogram"></canvas>
+        </div>
+    </div>   
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -111,8 +91,8 @@
                     drawHistogram('original-histogram', data.original_histogram);
                     drawHistogram('processed-histogram', data.processed_histogram);
 
-                    // Display metrics on the frontend
-                    const metricsHtml = `
+                    // Display before metrics on the frontend
+                    const beforeMetricsHtml = `
                     <div>
                         <strong>Beam Classification:</strong> ${data.beam_classification}<br>
                         <strong>Blob Area:</strong> ${data.blob_area} pixels<br>
@@ -120,8 +100,18 @@
                         <strong>White Area Ratio:</strong> ${data.white_area_ratio}<br>
                     </div>
                 `;
-                
-                document.getElementById('metrics').innerHTML = metricsHtml;
+
+                document.getElementById('before-metrics').innerHTML = beforeMetricsHtml;
+
+                // Display after metrics on the frontend
+                // Assuming you have a separate set of metrics for the processed image
+                const afterMetricsHtml = `
+                    <div>
+                        // ... similar structure for after metrics ...
+                    </div>
+                `;
+
+                document.getElementById('after-metrics').innerHTML = afterMetricsHtml;
                 })
                 .catch(error => console.error('Error:', error));
             });
