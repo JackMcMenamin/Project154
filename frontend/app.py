@@ -8,7 +8,7 @@ import logging
 from PIL import Image
 from flask import jsonify
 
-logging.basicConfig(level=logging.DEBUG) 
+logging.basicConfig(level=logging.ERROR) 
 
 # Define the base directory of the Flask application
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,13 +27,13 @@ if not os.path.exists(processed_dir):
 
 @app.route('/process-image', methods=['POST'])
 def process_image_endpoint():
-    app.logger.debug('Received a request to process an image.')
+    #app.logger.debug('Received a request to process an image.')
     if 'image' not in request.files:
         app.logger.error('No image part in the request.')
         return "No image provided", 400
 
     file = request.files['image']
-    app.logger.debug(f'Received file: {file.filename}')
+    #app.logger.debug(f'Received file: {file.filename}')
 
     # Check if the file is TIFF and convert to PNG
     original_image_path = os.path.join(uploads_dir, file.filename)
@@ -41,7 +41,7 @@ def process_image_endpoint():
 
     # Convert TIFF to PNG before processing
     if file.filename.lower().endswith(('.tiff', '.tif')):
-        app.logger.debug('Converting TIFF to PNG')
+        #app.logger.debug('Converting TIFF to PNG')
         tiff_image = Image.open(file.stream)  # Open the image directly from the file stream
         png_filename = os.path.splitext(file.filename)[0] + '.png'
         converted_image_path = os.path.join(uploads_dir, png_filename)  # PNG file path
@@ -51,7 +51,7 @@ def process_image_endpoint():
         # Save the original file
         file.save(original_image_path)
 
-    app.logger.debug(f'Saving uploaded image to: {converted_image_path}')
+    #app.logger.debug(f'Saving uploaded image to: {converted_image_path}')
 
     # Process the image and get the processing results
     processing_results = process_image(converted_image_path)
@@ -61,11 +61,16 @@ def process_image_endpoint():
     if 'outline_image' in processing_results and processing_results['outline_image']:
         processed_image_path = os.path.join(processed_dir, processing_results['outline_image'])
 
-    app.logger.debug(f'Processed image saved to: {processed_image_path}')
+    #app.logger.debug(f'Processed image saved to: {processed_image_path}')
 
     # After saving the original image and before returning the response
     original_histogram = generate_histogram(converted_image_path)
     processed_histogram = generate_histogram(processed_image_path)
+    
+    # Call function to add contours to the original image
+    contour_points = processing_results.get('contour_points', [])
+    # Inside process_image_endpoint function after processing the image
+    step3_image_filename = apply_outline_to_original(converted_image_path, processed_image_path)
 
     # Prepare the response with the path of the image with the outline
     response = jsonify({
@@ -73,6 +78,8 @@ def process_image_endpoint():
         'processed': os.path.basename(processed_image_path),  # Updated to use the outline image
         'original_histogram': original_histogram,
         'processed_histogram': processed_histogram,
+        'step3_image': step3_image_filename if step3_image_filename else None,
+        
         # Metrics
         'beam_classification': processing_results['beam_classification'],
         'blob_area': processing_results['blob_area'],
@@ -82,9 +89,22 @@ def process_image_endpoint():
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
+def extract_outline(processed_image_path):
+    # Load the processed image
+    processed_image = cv2.imread(processed_image_path, cv2.IMREAD_COLOR)
+    if processed_image is None:
+        app.logger.error(f"Error loading processed image from {processed_image_path}")
+        return None
+
+    # Convert to grayscale and threshold to get the mask
+    gray_image = cv2.cvtColor(processed_image, cv2.COLOR_BGR2GRAY)
+    _, mask = cv2.threshold(gray_image, 1, 255, cv2.THRESH_BINARY)
+
+    return mask
+
 
 def process_image(image_path):
-    app.logger.debug(f'Starting to process image: {image_path}')
+    #app.logger.debug(f'Starting to process image: {image_path}')
     
     # Load the image in grayscale
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -124,7 +144,7 @@ def process_image(image_path):
             beam_classification = 'normal beam'
             break
 
-        app.logger.debug(f'Attempt {attempt}: Beam Classification: {beam_classification}, White Area Ratio: {white_area_ratio:.2f}%')
+        #app.logger.debug(f'Attempt {attempt}: Beam Classification: {beam_classification}, White Area Ratio: {white_area_ratio:.2f}%')
         attempt += 1
     
     if attempt == max_attempts and (beam_classification == 'image too dark' or beam_classification == 'image too bright'):
@@ -137,14 +157,25 @@ def process_image(image_path):
     # Calculate blob area and center only if the image has been classified as 'normal beam'
     blob_area, blob_center = None, None
     if beam_classification == 'normal beam':
-        blob_area = white_pixels
         contours, _ = cv2.findContours(opened_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
+            blob_area = cv2.contourArea(largest_contour)
             M = cv2.moments(largest_contour)
             if M["m00"] != 0:
                 blob_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
                 
+    # After finding contours, serialize them for JSON response
+    if beam_classification == 'normal beam' and contours:
+        # Assuming you only want the largest contour
+        largest_contour = max(contours, key=cv2.contourArea)
+        M = cv2.moments(largest_contour)
+        if M["m00"] != 0:
+            blob_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+        # Convert contour points to a list of tuples
+        contour_points = largest_contour[:, 0, :].tolist()
+    else:
+        contour_points = []
                 
     if beam_classification == 'normal beam' and blob_center is not None:
         # Load the image in color to put a colored 'X'
@@ -161,13 +192,13 @@ def process_image(image_path):
         processed_image_filename = os.path.splitext(os.path.basename(image_path))[0] + '_marked.png'
         processed_image_path = os.path.join(processed_dir, processed_image_filename)
         cv2.imwrite(processed_image_path, color_image)  # Save the image with the red 'X'
-        app.logger.debug(f'Processed image with blob center marked as red \'X\' saved to {processed_image_path}')
+        #app.logger.debug(f'Processed image with blob center marked as red \'X\' saved to {processed_image_path}')
     else:
         # Save the grayscale image if no blob center is marked
         processed_image_filename = os.path.basename(image_path)
         processed_image_path = os.path.join(processed_dir, processed_image_filename)
         cv2.imwrite(processed_image_path, opened_image)
-        app.logger.debug(f'Processed image saved to {processed_image_path}')
+        #app.logger.debug(f'Processed image saved to {processed_image_path}')
 
 
     white_pixels = cv2.countNonZero(thresholded_image)
@@ -184,11 +215,12 @@ def process_image(image_path):
         'blob_area': white_pixels if beam_classification == 'normal beam' else None,
         'blob_center': blob_center if beam_classification == 'normal beam' else None,
         'white_area_ratio': white_area_ratio,
-        'outline_image': os.path.basename(outline_image_path) if outline_image_path else None
+        'outline_image': os.path.basename(outline_image_path) if outline_image_path else None,
+        'contour_points': contour_points
     }
     
 def draw_blob_outline(image_path, processed_image_path):
-    app.logger.debug(f'Starting to draw outline on image: {processed_image_path}')
+    #app.logger.debug(f'Starting to draw outline on image: {processed_image_path}')
 
     # Load the processed image
     image = cv2.imread(processed_image_path, cv2.IMREAD_GRAYSCALE)
@@ -224,14 +256,46 @@ def draw_blob_outline(image_path, processed_image_path):
     outline_image_filename = os.path.splitext(os.path.basename(processed_image_path))[0] + '_tight_outline.png'
     outline_image_path = os.path.join(processed_dir, outline_image_filename)
     cv2.imwrite(outline_image_path, color_image)
-    app.logger.debug(f'Image with tighter blob outline saved to {outline_image_path}')
+    #app.logger.debug(f'Image with tighter blob outline saved to {outline_image_path}')
 
     return outline_image_path
+
+def apply_outline_to_original(original_image_path, processed_image_path):
+    # Load the processed image and find the contour
+    processed_image = cv2.imread(processed_image_path)
+    gray = cv2.cvtColor(processed_image, cv2.COLOR_BGR2GRAY)
+    ret, binary = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+    contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Load the original image
+    original_image = cv2.imread(original_image_path, cv2.IMREAD_COLOR)
+    
+    # Resize the original image to the processed image's size if necessary
+    if original_image.shape[:2] != processed_image.shape[:2]:
+        original_image = cv2.resize(original_image, (processed_image.shape[1], processed_image.shape[0]))
+
+    # Draw the largest contour and red 'X' onto the original image
+    if contours:
+        largest_contour = max(contours, key=cv2.contourArea)
+        M = cv2.moments(largest_contour)
+        if M["m00"] != 0:
+            cx, cy = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            size = 7  # Size of the 'X'
+            cv2.drawContours(original_image, [largest_contour], -1, (0, 0, 255), 2)
+            cv2.line(original_image, (cx - size, cy - size), (cx + size, cy + size), (0, 0, 255), 2)
+            cv2.line(original_image, (cx + size, cy - size), (cx - size, cy + size), (0, 0, 255), 2)
+
+    # Save the new "Step 3" image
+    step3_image_filename = 'step3_' + os.path.basename(original_image_path)
+    step3_image_path = os.path.join(processed_dir, step3_image_filename)
+    cv2.imwrite(step3_image_path, original_image)
+
+    return step3_image_filename
 
 
 @app.route('/processed/<filename>')
 def processed_file(filename):
-    app.logger.debug(f'Serving processed file: {filename}')
+    #app.logger.debug(f'Serving processed file: {filename}')
     return send_from_directory('static/processed', filename)
 
 @app.errorhandler(Exception)
@@ -244,7 +308,7 @@ def handle_exception(e):
 def generate_histogram(image_path):
     # Construct the absolute path
     absolute_image_path = os.path.join(BASE_DIR, 'static', image_path)
-    app.logger.debug(f"Attempting to load image at path: {absolute_image_path}")
+    #app.logger.debug(f"Attempting to load image at path: {absolute_image_path}")
 
     # Check if the file exists
     if not os.path.isfile(absolute_image_path):

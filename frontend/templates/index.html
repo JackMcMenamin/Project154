@@ -8,20 +8,28 @@
         .row { display: flex; justify-content: center; align-items: flex-start; margin-top: 20px; }
         .column { flex: 1; padding: 5px; text-align: center; }
         img { max-width: 100%; max-height: 400px; }
-        canvas { 
-            padding: 10px; 
-            background-color: #f8f8f8; 
-            border: 1px solid #ccc; 
-            margin-top: 10px; 
-            display: block; 
-            width: 100%;
-            height: 200px;
-        }
+        button { padding: 10px 20px; font-size: 18px; margin-bottom: 10px; } /* Increased button size */
         .metrics-content {
             background-color: #f8f8f8;
             border: 1px solid #ccc;
             padding: 20px;
             text-align: center;
+            margin-top: 10px; /* Aligns with images */
+        }
+        .overall-metrics { /* Placeholder for overall metrics */
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+            height: 100px; /* Placeholder height, adjust as needed */
+        }
+
+        input[type="file"] {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-bottom: 10px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -32,33 +40,45 @@
         <button type="submit">Process Image</button>
     </form>
     
-    <!-- Before row -->
+    <!-- Step 1 row -->
     <div class="row">
         <div class="column">
-            <h2>Before</h2>
+            <h2>Step 1: Input Image</h2> <!-- Changed label -->
             <img id="before-image" src="#" alt="Before image will be displayed here">
         </div>
         <div class="column">
             <div id="before-metrics" class="metrics-content"></div>
         </div>
-        <div class="column">
-            <canvas id="original-histogram"></canvas>
-        </div>
     </div>
 
-    <!-- After row -->
+    <!-- Step 2 row -->
     <div class="row">
         <div class="column">
-            <h2>After</h2>
+            <h2>Step 2: Processed Image</h2> <!-- Changed label -->
             <img id="after-image" src="#" alt="After image will be displayed here">
         </div>
         <div class="column">
             <div id="after-metrics" class="metrics-content"></div>
         </div>
-        <div class="column">
-            <canvas id="processed-histogram"></canvas>
-        </div>
     </div>   
+
+    <!-- Step 3 row -->
+    <div class="row">
+        <div class="column">
+            <h2>Step 3: Original with blob detected</h2>
+            <img id="step3-image" src="#" alt="Step 3 image will be displayed here">
+        </div>
+        <div class="column">
+            <div id="step3-metrics" class="metrics-content"></div>
+        </div>
+    </div>
+
+    <!-- Placeholder for Overall Metrics -->
+    <div class="row">
+        <div class="column">
+            <div class="overall-metrics">Overall Metrics Placeholder</div>
+        </div>
+    </div>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -80,41 +100,51 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                console.log("Original image filename:", data.original);
-                    console.log("Processed image filename:", data.processed);
-                    const originalImageUrl = `/static/uploads/${data.original}`;
-                    const processedImageUrl = `/static/processed/${data.processed}`;
+                    // console.log("Data received from server:", data); // Log the data to see what's received
+                
+                    if(!data.beam_classification || !data.blob_area || !data.blob_center || !data.white_area_ratio) {
+                        console.error("Missing metrics data", data);
+                        return; // If any of the metrics are undefined, do not proceed
+                    }
 
-                    beforeImage.src = originalImageUrl;
-                    afterImage.src = processedImageUrl;
-
-                    drawHistogram('original-histogram', data.original_histogram);
-                    drawHistogram('processed-histogram', data.processed_histogram);
-
+                    // Update the src attribute of the before and after image elements
+                    if(data.original && data.processed) {
+                        const beforeImageUrl = `/static/uploads/${data.original}`;
+                        const afterImageUrl = `/static/processed/${data.processed}`;
+                        document.getElementById('before-image').src = beforeImageUrl;
+                        document.getElementById('after-image').src = afterImageUrl;
+                    } else {
+                        console.error("Missing image data", data);
+                    }
+                
                     // Display before metrics on the frontend
                     const beforeMetricsHtml = `
-                    <div>
-                        <strong>Beam Classification:</strong> ${data.beam_classification}<br>
-                        <strong>Blob Area:</strong> ${data.blob_area} pixels<br>
-                        <strong>Blob Center:</strong> (${data.blob_center[0]}, ${data.blob_center[1]})<br>
-                        <strong>White Area Ratio:</strong> ${data.white_area_ratio}<br>
-                    </div>
-                `;
-
-                document.getElementById('before-metrics').innerHTML = beforeMetricsHtml;
-
-                // Display after metrics on the frontend
-                // Assuming you have a separate set of metrics for the processed image
-                const afterMetricsHtml = `
-                    <div>
-                        // ... similar structure for after metrics ...
-                    </div>
-                `;
-
-                document.getElementById('after-metrics').innerHTML = afterMetricsHtml;
+                        <div>
+                            <strong>Beam Classification:</strong> ${data.beam_classification}<br>
+                            <strong>Blob Area:</strong> ${data.blob_area} pixels<br>
+                            <strong>Blob Center:</strong> (${data.blob_center[0]}, ${data.blob_center[1]})<br>
+                            <strong>White Area Ratio:</strong> ${data.white_area_ratio}<br>
+                        </div>
+                    `;
+                    document.getElementById('before-metrics').innerHTML = beforeMetricsHtml;
+                
+                    // Here you should construct the afterMetricsHtml using actual data from the response
+                    // Make sure to remove the placeholder comment and use actual data keys
+                    const afterMetricsHtml = beforeMetricsHtml; // Replace with your actual after metrics HTML structure
+                    document.getElementById('after-metrics').innerHTML = afterMetricsHtml;
+                
+                    // Update the src attribute of the Step 3 image element
+                    // Make sure data.step3_image actually exists in the response
+                    if(data.step3_image) {
+                        const step3ImageUrl = `/static/processed/${data.step3_image}`;
+                        document.getElementById('step3-image').src = step3ImageUrl;
+                        document.getElementById('step3-metrics').innerHTML = afterMetricsHtml; // Or use step 3 specific metrics if different
+                    } else {
+                        console.error("Missing step 3 image data", data);
+                    }
                 })
                 .catch(error => console.error('Error:', error));
-            });
+        });
 
             function drawHistogram(canvasId, histogramData) {
                 const canvas = document.getElementById(canvasId);
