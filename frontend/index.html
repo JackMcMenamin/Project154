@@ -31,35 +31,15 @@
             margin-bottom: 10px;
             cursor: pointer;
         }
-
-        .image-container {
-            display: inline-block;
+        
+        .image-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .image-gallery img {
             margin: 5px;
-            width: calc(20% - 10px); /* Adjust width to fit 5 images per row, accounting for margin */
-            vertical-align: top; /* Align the tops of the images */
-        }
-        
-        .image-name {
-            display: block; /* Ensure the name appears on a new line */
-            margin-top: 5px; /* Space between the image and the name */
-            font-size: 12px; /* Adjust the size as needed */
-            color: #666; /* A lighter text color for the names */
-        }       
-        
-        @media (max-width: 800px) {
-            .image-gallery img {
-                /* For smaller screens, each image can take more space, like 50% of the container width */
-                flex: 0 0 calc(50% - 10px);
-                max-width: calc(50% - 10px);
-            }
-        }
-        
-        @media (max-width: 500px) {
-            .image-gallery img {
-                /* For even smaller screens, each image can take full width of the container */
-                flex: 0 0 100%;
-                max-width: 100%;
-            }
+            max-width: 200px; /* Set a max width for each image */
         }
 
     </style>
@@ -69,7 +49,7 @@
     <form id="upload-form" action="http://localhost:5000/process-images" method="post" enctype="multipart/form-data">
         <input type="file" name="images" id="file-input" accept="image/*" multiple webkitdirectory>
         <button type="submit">Process Images</button>
-    </form>  
+    </form>    
 
     <!-- Container for Overall Metrics -->
     <div class="overall-metrics">Overall Metrics Placeholder</div>
@@ -82,7 +62,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('upload-form');
             form.addEventListener('submit', function(event) {
-                console.log('Form submission triggered');
                 event.preventDefault();
                 const formData = new FormData(form);
                 fetch('http://localhost:5000/process-images', {
@@ -91,9 +70,9 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Data received:', data); // Log the data to see what's received
+                    // Assuming `data` is an object that contains 'overall_metrics' and 'images' arrays
                     displayOverallMetrics(data.overall_metrics);
-                    displayProcessedImages(data.images); // This line was missing
+                    displayProcessedImages(data.images);
                 })
                 .catch(error => console.error('Error:', error));
             });
@@ -117,30 +96,22 @@
             const gallery = document.getElementById('image-gallery');
             gallery.innerHTML = ''; // Clear the gallery before adding new images
         
-            images.forEach((image) => {
-                // Create a container for each image to control layout more precisely
-                const imageContainer = document.createElement('div');
-                imageContainer.classList.add('image-container');
-        
-                // Add an image element to the container
+            images.forEach(image => {
                 const img = document.createElement('img');
-                img.src = `/static/processed/${image.processed}`;
+                img.src = `/static/processed/${image.filename}`;
                 img.alt = 'Processed image';
-                img.onerror = () => { img.alt = 'Image failed to load'; }; // Error handling for image loading
-                imageContainer.appendChild(img);
+                img.classList.add('processed-image'); // Add a class for styling purposes
+                
+                // Add event listener to each image to handle clicks
+                img.addEventListener('click', function() {
+                    // Here you can redirect to a detailed analysis page or open a modal.
+                    // Example: window.location.href = `/detailed-analysis?image=${image.filename}`;
+                    console.log(`Image ${image.filename} clicked`); // Placeholder action
+                });
         
-                // Add the image name above the image
-                const imageName = document.createElement('div');
-                imageName.textContent = image.original; // Assuming `image.original` contains the name
-                imageName.classList.add('image-name');
-                imageContainer.insertBefore(imageName, img); // Insert the name before the image
-        
-                // Add the container to the gallery
-                gallery.appendChild(imageContainer);
+                gallery.appendChild(img);
             });
         }
-        
-        
     </script>
     
 </body>

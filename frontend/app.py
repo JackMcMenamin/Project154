@@ -7,6 +7,8 @@ import os
 import logging
 from PIL import Image
 from flask import jsonify
+from werkzeug.utils import secure_filename
+import re
 
 logging.basicConfig(level=logging.ERROR) 
 
@@ -24,69 +26,84 @@ if not os.path.exists(uploads_dir):
     os.makedirs(uploads_dir)
 if not os.path.exists(processed_dir):
     os.makedirs(processed_dir)
-
-@app.route('/process-image', methods=['POST'])
-def process_image_endpoint():
-    #app.logger.debug('Received a request to process an image.')
-    if 'image' not in request.files:
-        app.logger.error('No image part in the request.')
-        return "No image provided", 400
-
-    file = request.files['image']
-    #app.logger.debug(f'Received file: {file.filename}')
-
-    # Check if the file is TIFF and convert to PNG
-    original_image_path = os.path.join(uploads_dir, file.filename)
-    converted_image_path = original_image_path 
-
-    # Convert TIFF to PNG before processing
-    if file.filename.lower().endswith(('.tiff', '.tif')):
-        #app.logger.debug('Converting TIFF to PNG')
-        tiff_image = Image.open(file.stream)  # Open the image directly from the file stream
-        png_filename = os.path.splitext(file.filename)[0] + '.png'
-        converted_image_path = os.path.join(uploads_dir, png_filename)  # PNG file path
-        tiff_image.save(converted_image_path)  # Save the PNG image
-        tiff_image.close()
-    else:
-        # Save the original file
-        file.save(original_image_path)
-
-    #app.logger.debug(f'Saving uploaded image to: {converted_image_path}')
-
-    # Process the image and get the processing results
-    processing_results = process_image(converted_image_path)
-    processed_image_path = processing_results['path']  # This is the path without the outline
-
-    # Now, we update the processed_image_path with the outline image path
-    if 'outline_image' in processing_results and processing_results['outline_image']:
-        processed_image_path = os.path.join(processed_dir, processing_results['outline_image'])
-
-    #app.logger.debug(f'Processed image saved to: {processed_image_path}')
-
-    # After saving the original image and before returning the response
-    original_histogram = generate_histogram(converted_image_path)
-    processed_histogram = generate_histogram(processed_image_path)
     
-    # Call function to add contours to the original image
-    contour_points = processing_results.get('contour_points', [])
-    # Inside process_image_endpoint function after processing the image
-    step3_image_filename = apply_outline_to_original(converted_image_path, processed_image_path)
+# This helper function extracts numbers from a filename and returns it as an integer
+def extract_number(filename):
+    parts = re.findall(r'(\d+)', filename)
+    return tuple(map(int, parts)) if parts else (0,)
 
-    # Prepare the response with the path of the image with the outline
-    response = jsonify({
-        'original': os.path.basename(converted_image_path),
-        'processed': os.path.basename(processed_image_path),  # Updated to use the outline image
-        'original_histogram': original_histogram,
-        'processed_histogram': processed_histogram,
-        'step3_image': step3_image_filename if step3_image_filename else None,
+@app.route('/process-images', methods=['POST'])
+def process_images_endpoint():
+    # This will store results for all images
+    all_images_results = []
+    overall_metrics = {
+        'total_images': 0,
+        'average_blob_area': 0,
+        # Add more overall metrics as needed
+    }
+
+    # Check if any file is attached in the request
+    if 'images' not in request.files:
+        app.logger.error('No images part in the request.')
+        return "No images provided", 400
+
+    files = request.files.getlist('images')
+    
+    # Sort files by the numerical part of their filename
+    files.sort(key=lambda x: extract_number(x.filename))
+    
+    # Loop over each file and process
+    for file in files:
+        print(f"Sorted filename: {file.filename}")
+        if file.filename == '':
+            app.logger.error('No selected file.')
+            continue
+
+        # Ensure the filename is secure
+        filename = secure_filename(file.filename)
+        original_image_path = os.path.join(uploads_dir, filename)
+        file.save(original_image_path)
         
-        # Metrics
-        'beam_classification': processing_results['beam_classification'],
-        'blob_area': processing_results['blob_area'],
-        'blob_center': processing_results['blob_center'] if processing_results['blob_center'] else "Not applicable",
-        'white_area_ratio': round(processing_results['white_area_ratio'], 2)
+        # Process the image and get the processing results
+        processing_results = process_image(original_image_path)
+        
+        # Skip files that couldn't be processed
+        if processing_results is None:
+            continue
+
+        processed_image_path = processing_results['path']
+        
+        # Update overall metrics here if necessary
+        
+        # Prepare the response for the individual image
+        image_results = {
+            'original': os.path.basename(original_image_path),
+            'processed': os.path.basename(processed_image_path),
+            'metrics': {
+                'beam_classification': processing_results['beam_classification'],
+                'blob_area': processing_results['blob_area'],
+                'blob_center': processing_results['blob_center'],
+                'white_area_ratio': processing_results['white_area_ratio'],
+            }
+        }
+        all_images_results.append(image_results)
+        
+    # Assume `all_images_results` is your list of image results
+    all_images_results = sorted(all_images_results, key=lambda x: extract_number(x['original']))
+        
+    # Calculate overall metrics here if necessary
+    
+    # Before returning the response, log the results
+    app.logger.debug('Overall metrics: %s', overall_metrics)
+    app.logger.debug('Image results: %s', all_images_results)
+    
+    # Return the results for all images
+    response = jsonify({
+        'overall_metrics': overall_metrics,
+        'images': all_images_results
     })
     response.headers.add('Access-Control-Allow-Origin', '*')
+    app.logger.debug('Response: %s', response.get_data(as_text=True))
     return response
 
 def extract_outline(processed_image_path):
@@ -104,7 +121,8 @@ def extract_outline(processed_image_path):
 
 
 def process_image(image_path):
-    #app.logger.debug(f'Starting to process image: {image_path}')
+    
+    app.logger.debug(f"Starting to process image: {image_path}")
     
     # Load the image in grayscale
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -112,51 +130,45 @@ def process_image(image_path):
     if image is None:
         app.logger.error(f"Error loading image from {image_path}")
         return None
-    
+
+    # Initialize threshold value and image processing variables
     threshold_value = 230
-    _, thresholded_image = cv2.threshold(image, threshold_value, 255, cv2.THRESH_BINARY)
-    
-    print("Unique pixel values after thresholding:", np.unique(thresholded_image))
-    
-    # Check if the thresholding is as expected
-    if np.any(thresholded_image[thresholded_image < threshold_value]):
-        app.logger.error("Thresholding not performed as expected")
-    
-    attempt = 0
-    max_attempts = 110
+    max_attempts = 10
     enhancement_factor = 1
-    darkening_factor = 10  # Less than 1 to darken the image
+    darkening_factor = -10
     beam_classification = None
-    
+    attempt = 0
+
+    # Perform adaptive thresholding and classification
     while attempt < max_attempts:
-        _, thresholded_image = cv2.threshold(image, 130, 255, cv2.THRESH_BINARY)
+        _, thresholded_image = cv2.threshold(image, threshold_value, 255, cv2.THRESH_BINARY)
         white_pixels = cv2.countNonZero(thresholded_image)
         total_pixels = image.size
         white_area_ratio = (white_pixels / total_pixels) * 100
+        app.logger.debug(f"Attempt {attempt}: White area ratio is {white_area_ratio}%")
 
+        # Adjust image brightness based on classification
         if white_area_ratio < 15:
             beam_classification = 'image too dark'
-            image = np.clip(image + enhancement_factor, 0, 255).astype(np.uint8)  # Enhance brightness
+            image = np.clip(image + enhancement_factor, 0, 255).astype(np.uint8)
         elif white_area_ratio > 40:
             beam_classification = 'image too bright'
-            image = np.clip(image + darkening_factor, 0, 255).astype(np.uint8)  # Darken image
+            image = np.clip(image + darkening_factor, 0, 255).astype(np.uint8)
         else:
             beam_classification = 'normal beam'
-            break
+            break  # Exit the loop if image is classified as normal
 
-        #app.logger.debug(f'Attempt {attempt}: Beam Classification: {beam_classification}, White Area Ratio: {white_area_ratio:.2f}%')
         attempt += 1
-    
-    if attempt == max_attempts and (beam_classification == 'image too dark' or beam_classification == 'image too bright'):
-        beam_classification = 'Bad image'
         
-    # Define a kernel for morphological operations to clean up the image - noise suppression
-    kernel = np.ones((2,2),np.uint8)
-    opened_image = cv2.morphologyEx(thresholded_image, cv2.MORPH_OPEN, kernel)
+    app.logger.debug(f"Beam classification: {beam_classification}")
 
-    # Calculate blob area and center only if the image has been classified as 'normal beam'
-    blob_area, blob_center = None, None
     if beam_classification == 'normal beam':
+        # Further processing if the image is classified as normal
+        # Define a kernel for morphological operations
+        kernel = np.ones((2, 2), np.uint8)
+        opened_image = cv2.morphologyEx(thresholded_image, cv2.MORPH_OPEN, kernel)
+
+        # Find contours and calculate blob properties
         contours, _ = cv2.findContours(opened_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
@@ -164,61 +176,38 @@ def process_image(image_path):
             M = cv2.moments(largest_contour)
             if M["m00"] != 0:
                 blob_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                
-    # After finding contours, serialize them for JSON response
-    if beam_classification == 'normal beam' and contours:
-        # Assuming you only want the largest contour
-        largest_contour = max(contours, key=cv2.contourArea)
-        M = cv2.moments(largest_contour)
-        if M["m00"] != 0:
-            blob_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-        # Convert contour points to a list of tuples
-        contour_points = largest_contour[:, 0, :].tolist()
+                # Draw a red 'X' at the blob center
+                x_center, y_center = blob_center
+                size = 7
+                cv2.line(image, (x_center - size, y_center - size), (x_center + size, y_center + size), (0, 0, 255), 2)
+                cv2.line(image, (x_center + size, y_center - size), (x_center - size, y_center + size), (0, 0, 255), 2)
+        else:
+            blob_area, blob_center = None, None
     else:
-        contour_points = []
-                
+        # If image is too dark or too bright even after max attempts, classify as bad image
+        beam_classification = 'Bad image'
+        blob_area, blob_center = None, None
+
+    # Convert and save the processed image in PNG format
+    processed_image_filename = os.path.splitext(os.path.basename(image_path))[0] + '.png'
+    processed_image_path = os.path.join(processed_dir, processed_image_filename)
+
+    # Perform the final processing and save as PNG
     if beam_classification == 'normal beam' and blob_center is not None:
-        # Load the image in color to put a colored 'X'
         color_image = cv2.cvtColor(opened_image, cv2.COLOR_GRAY2BGR)
-
-        # Calculate the coordinates for the red 'X'
-        x_center, y_center = blob_center
-        size = 7  # Size of the 'X'
-        # Draw two intersecting lines to form an 'X'
-        cv2.line(color_image, (x_center - size, y_center - size), (x_center + size, y_center + size), (0, 0, 255), 2)
-        cv2.line(color_image, (x_center + size, y_center - size), (x_center - size, y_center + size), (0, 0, 255), 2)
-
-        # Save the color image with the red 'X'
-        processed_image_filename = os.path.splitext(os.path.basename(image_path))[0] + '_marked.png'
-        processed_image_path = os.path.join(processed_dir, processed_image_filename)
-        cv2.imwrite(processed_image_path, color_image)  # Save the image with the red 'X'
-        #app.logger.debug(f'Processed image with blob center marked as red \'X\' saved to {processed_image_path}')
     else:
-        # Save the grayscale image if no blob center is marked
-        processed_image_filename = os.path.basename(image_path)
-        processed_image_path = os.path.join(processed_dir, processed_image_filename)
-        cv2.imwrite(processed_image_path, opened_image)
-        #app.logger.debug(f'Processed image saved to {processed_image_path}')
+        color_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
-
-    white_pixels = cv2.countNonZero(thresholded_image)
-    total_pixels = image.size
-    white_area_ratio = (white_pixels / total_pixels) * 100
-    print(white_area_ratio)
-    
-    # Call the new function to draw the blob outline
-    outline_image_path = draw_blob_outline(image_path, processed_image_path)
+    cv2.imwrite(processed_image_path, color_image)  # Save the final image as PN
 
     return {
-        'path': os.path.join('processed', processed_image_filename),
+        'path': processed_image_path,
         'beam_classification': beam_classification,
-        'blob_area': white_pixels if beam_classification == 'normal beam' else None,
-        'blob_center': blob_center if beam_classification == 'normal beam' else None,
+        'blob_area': blob_area,
+        'blob_center': blob_center,
         'white_area_ratio': white_area_ratio,
-        'outline_image': os.path.basename(outline_image_path) if outline_image_path else None,
-        'contour_points': contour_points
     }
-    
+
 def draw_blob_outline(image_path, processed_image_path):
     #app.logger.debug(f'Starting to draw outline on image: {processed_image_path}')
 
@@ -341,4 +330,4 @@ def index():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=True)
