@@ -32,6 +32,11 @@ def extract_number(filename):
     parts = re.findall(r'(\d+)', filename)
     return tuple(map(int, parts)) if parts else (0,)
 
+@app.route('/image-detail')
+def image_detail():
+    # You can add any dynamic content to the template here.
+    return render_template('image-detail.html')
+
 @app.route('/process-images', methods=['POST'])
 def process_images_endpoint():
     # This will store results for all images

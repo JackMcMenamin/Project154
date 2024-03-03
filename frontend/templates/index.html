@@ -38,6 +38,10 @@
             width: calc(20% - 10px); /* Adjust width to fit 5 images per row, accounting for margin */
             vertical-align: top; /* Align the tops of the images */
         }
+
+        .image-container img {
+            cursor: pointer; /* This will change the cursor to the 'hand' pointer when hovering over the images */
+        }        
         
         .image-name {
             display: block; /* Ensure the name appears on a new line */
@@ -117,7 +121,7 @@
             const gallery = document.getElementById('image-gallery');
             gallery.innerHTML = ''; // Clear the gallery before adding new images
         
-            images.forEach((image) => {
+            images.forEach((image, index) => {
                 // Create a container for each image to control layout more precisely
                 const imageContainer = document.createElement('div');
                 imageContainer.classList.add('image-container');
@@ -126,7 +130,8 @@
                 const img = document.createElement('img');
                 img.src = `/static/processed/${image.processed}`;
                 img.alt = 'Processed image';
-                img.onerror = () => { img.alt = 'Image failed to load'; }; // Error handling for image loading
+                img.setAttribute('data-index', index); // Set a data attribute for the index
+                img.onclick = function() { navigateToDetailPage(image, this.getAttribute('data-index')); }; // Use the data attribute for the index
                 imageContainer.appendChild(img);
         
                 // Add the image name above the image
@@ -140,7 +145,14 @@
             });
         }
         
+        function navigateToDetailPage(image, index) {
+            // Store the current image index and information in local storage or pass via URL
+            localStorage.setItem('currentImage', JSON.stringify({ image: image, index: index }));
+            window.location.href = '/image-detail'; // The Flask route for the detailed view page
+        }
         
+        
+
     </script>
     
 </body>
