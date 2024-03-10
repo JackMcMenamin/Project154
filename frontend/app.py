@@ -75,6 +75,12 @@ def process_images_endpoint():
         # Skip files that couldn't be processed
         if processing_results is None:
             continue
+        
+        # Now draw the blob outline on the processed image
+        outline_image_path = draw_blob_outline(original_image_path, processing_results['path'])
+
+        # Update the path in processing results to point to the new image with the outline
+        processing_results['path'] = outline_image_path
 
         processed_image_path = processing_results['path']
         
