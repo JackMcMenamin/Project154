@@ -9,6 +9,7 @@ from PIL import Image
 from flask import jsonify
 from werkzeug.utils import secure_filename
 import re
+from math import sqrt
 
 logging.basicConfig(level=logging.ERROR) 
 
@@ -34,8 +35,46 @@ def extract_number(filename):
 
 @app.route('/image-detail')
 def image_detail():
-    # You can add any dynamic content to the template here.
-    return render_template('image-detail.html')
+    app.logger.debug(f"Full URL requested: {request.url}")
+    image_name_with_ext = request.args.get('name', '')
+    base_name = os.path.splitext(image_name_with_ext)[0]  # This should give you "run04_Shot8" from "run04_Shot8.TIFF"
+    app.logger.debug(f"Image name received: {base_name}")
+    
+    intermediate_dir = os.path.join(processed_dir, base_name)
+
+    if not base_name:
+        # Handle the error when image_name is None
+        app.logger.error('No image name provided.')
+        return "Error: No image name provided.", 400
+
+    # Based on the image name, find the folder with the intermediate images
+    intermediate_dir = os.path.join(processed_dir, base_name)
+
+    # List all files in the directory
+    image_files = [file for file in os.listdir(intermediate_dir) if file.endswith('.png')]
+
+    # Sort the files by step (if you have a numbering system in the filenames)
+    image_files.sort(key=lambda x: extract_number(x))
+
+    # Return a template with the list of image file paths
+    return render_template('image-detail.html', image_files=image_files)
+
+@app.route('/get-intermediate-images')
+def get_intermediate_images():
+    image_name = request.args.get('name')
+    if not image_name:
+        return jsonify({'error': 'No image name provided'}), 400
+
+    base_name = os.path.splitext(image_name)[0]
+    intermediate_dir = os.path.join(processed_dir, base_name)
+    if not os.path.exists(intermediate_dir):
+        return jsonify({'error': 'Directory not found'}), 404
+
+    # Assuming all the intermediate images are in this directory
+    intermediate_images = [f for f in os.listdir(intermediate_dir) if f.endswith('.png')]
+    intermediate_images.sort()  # Optionally sort the files if needed
+
+    return jsonify({'intermediate_images': intermediate_images})
 
 @app.route('/process-images', methods=['POST'])
 def process_images_endpoint():
@@ -43,9 +82,19 @@ def process_images_endpoint():
     all_images_results = []
     overall_metrics = {
         'total_images': 0,
+        'bad_images': 0,
         'average_blob_area': 0,
+        'blob_area_std_dev': 0,  # To calculate standard deviation
+        'average_intensity': 0,
+        'intensity_std_dev': 0,  # To calculate standard deviation
+        'average_blob_center_offset': 0,  # If there is a known target center
         # Add more overall metrics as needed
     }
+    
+    # You would also need to accumulate data for each image to calculate these
+    blob_areas = []
+    intensities = []
+    center_offsets = []
 
     # Check if any file is attached in the request
     if 'images' not in request.files:
@@ -86,10 +135,17 @@ def process_images_endpoint():
             all_images_results.append(image_results)
             overall_metrics['total_images'] += 1
             overall_metrics['average_blob_area'] += processing_results['blob_area'] or 0
+            
+            #blob_areas.append(processing_results['blob_area'])
+            #intensities.append(calculate_average_intensity(some_image_data))
+            #center_offsets.append(calculate_center_offset(processing_results['blob_center']))
         
-    # Calculate overall metrics here if necessary
-    if overall_metrics['total_images'] > 0:
-        overall_metrics['average_blob_area'] = overall_metrics['average_blob_area'] / overall_metrics['total_images']
+    #if overall_metrics['total_images'] > 0:
+        #overall_metrics['average_blob_area'] = sum(blob_areas) / overall_metrics['total_images']
+        #overall_metrics['blob_area_std_dev'] = sqrt(sum((x - overall_metrics['average_blob_area'])**2 for x in blob_areas) / overall_metrics['total_images'])
+        #overall_metrics['average_intensity'] = sum(intensities) / overall_metrics['total_images']
+        #overall_metrics['intensity_std_dev'] = sqrt(sum((x - overall_metrics['average_intensity'])**2 for x in intensities) / overall_metrics['total_images'])
+        #overall_metrics['average_blob_center_offset'] = sum(center_offsets) / overall_metrics['total_images']
     
     # Sort the image results based on the numerical part of the original filename
     all_images_results = sorted(all_images_results, key=lambda x: extract_number(x['original']))
@@ -116,8 +172,20 @@ def process_and_draw_image(image_path):
         app.logger.error(f"Error loading image from {image_path}")
         return None
 
-    # Convert to grayscale
+    # Prepare a directory for intermediate images
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    intermediate_dir = os.path.join(processed_dir, base_name)
+    if not os.path.exists(intermediate_dir):
+        os.makedirs(intermediate_dir)
+
+    # Save the original image
+    original_image_path = os.path.join(intermediate_dir, base_name + '_original.png')
+    cv2.imwrite(original_image_path, original_image)
+
+    # Convert to grayscale and save
     gray_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+    gray_image_path = os.path.join(intermediate_dir, base_name + '_gray.png')
+    cv2.imwrite(gray_image_path, gray_image)
 
     # Initialize threshold value and image processing variables
     threshold_value = 90
@@ -129,23 +197,43 @@ def process_and_draw_image(image_path):
     white_area_ratio = None
 
     # Perform adaptive thresholding and classification
+    last_brightness_adjusted_image_path = None  # Initialize variable to hold the path of the last brightness-adjusted image
+    
+    # Initialize a variable to hold the path of the final thresholded image
+    final_thresholded_image_path = None
+    
     while attempt < max_attempts:
         _, thresholded_image = cv2.threshold(gray_image, threshold_value, 255, cv2.THRESH_BINARY)
+        
+        thresholded_image_path = os.path.join(intermediate_dir, f'{base_name}_thresholded_{attempt}.png')
+        cv2.imwrite(thresholded_image_path, thresholded_image)
+        
+        # Update the path for the last attempt (which will be the final threshold)
+        final_thresholded_image_path = thresholded_image_path
+
         white_pixels = cv2.countNonZero(thresholded_image)
         total_pixels = gray_image.size
         white_area_ratio = (white_pixels / total_pixels) * 100
         app.logger.debug(f"Attempt {attempt}: White area ratio is {white_area_ratio}%")
 
-        # Adjust image brightness based on classification
         if white_area_ratio < 15:
             beam_classification = 'image too dark'
             gray_image = np.clip(gray_image + enhancement_factor, 0, 255).astype(np.uint8)
         elif white_area_ratio > 40:
             beam_classification = 'image too bright'
-            gray_image = np.clip(gray_image + darkening_factor, 0, 255).astype(np.uint8)
+            gray_image = np.clip(gray_image - darkening_factor, 0, 255).astype(np.uint8)
         else:
             beam_classification = 'normal beam'
+            # Save the last brightness-adjusted image before exiting loop
+            if last_brightness_adjusted_image_path:
+                cv2.imwrite(last_brightness_adjusted_image_path, gray_image)
+                
+            # Save the final thresholded image here
+            final_thresholded_image_path = os.path.join(intermediate_dir, f'{base_name}_final_threshold.png')
+            cv2.imwrite(final_thresholded_image_path, thresholded_image)
             break  # Exit the loop if image is classified as normal
+            
+        
 
         attempt += 1
 
@@ -168,7 +256,7 @@ def process_and_draw_image(image_path):
             # Draw the comprehensive outline onto the original image
             cv2.drawContours(original_image, [hull], -1, (0, 0, 255), 2)
             
-            # Optionally, draw red 'X' at the centroid of the hull if needed
+            # Optionally, draw red 'X' at the centroid of t     he hull if needed
             M = cv2.moments(hull)
             if M["m00"] != 0:
                 cx, cy = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
@@ -178,20 +266,28 @@ def process_and_draw_image(image_path):
     else:
         # If image is too dark or too bright even after max attempts, classify as bad image
         beam_classification = 'Bad image'
+        
+    # Save the contour image
+    contour_image_path = os.path.join(intermediate_dir, f'{base_name}_contour.png')
+    if beam_classification == 'normal beam':
+        # If it's a normal beam, save the original image with the contour drawn on it
+        cv2.imwrite(contour_image_path, original_image)
+    else:
+        # If it's not a normal beam, save the final threshold image as the contour image
+        cv2.imwrite(contour_image_path, thresholded_image)
 
-    # Save the final image with the comprehensive red blob outline in PNG format
-    final_image_filename = os.path.splitext(os.path.basename(image_path))[0] + '_processed.png'
-    final_image_path = os.path.join(processed_dir, final_image_filename)
+    # Save the final image in the specific folder
+    final_image_path = os.path.join(intermediate_dir, f'{base_name}_processed.png')
     cv2.imwrite(final_image_path, original_image)
 
     return {
         'final_path': final_image_path,
+        'final_thresholded_image': os.path.basename(final_thresholded_image_path) if final_thresholded_image_path else None,
         'beam_classification': beam_classification,
-        'blob_area': blob_area,
-        'blob_center': blob_center,
+        'blob_area': None,  # Calculate and fill this if needed
+        'blob_center': None,  # Calculate and fill this if needed
         'white_area_ratio': white_area_ratio,
     }
-
 
 @app.route('/processed/<filename>')
 def processed_file(filename):
