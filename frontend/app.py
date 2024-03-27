@@ -125,6 +125,7 @@ def process_images_endpoint():
             image_results = {
                 'original': os.path.basename(original_image_path),
                 'processed': os.path.basename(processing_results['final_path']),  # This is the final image with the overlay
+                'contour': os.path.basename(processing_results.get('contour_path', '')),
                 'metrics': {
                     'beam_classification': processing_results['beam_classification'],
                     'blob_area': processing_results['blob_area'],
@@ -188,10 +189,10 @@ def process_and_draw_image(image_path):
     cv2.imwrite(gray_image_path, gray_image)
 
     # Initialize threshold value and image processing variables
-    threshold_value = 90
-    max_attempts = 110
+    threshold_value = 100 #90
+    max_attempts = 110 #110
     enhancement_factor = 1
-    darkening_factor = 10
+    darkening_factor = 1 #10
     beam_classification = None
     attempt = 0
     white_area_ratio = None
@@ -201,6 +202,7 @@ def process_and_draw_image(image_path):
     
     # Initialize a variable to hold the path of the final thresholded image
     final_thresholded_image_path = None
+    contour_overlay_image = None  # Initialize here to ensure it exists outside the if block
     
     while attempt < max_attempts:
         _, thresholded_image = cv2.threshold(gray_image, threshold_value, 255, cv2.THRESH_BINARY)
@@ -252,33 +254,39 @@ def process_and_draw_image(image_path):
             # We can use cv2.convexHull to create a single outline around multiple contours
             all_contours = np.vstack([contours[i] for i in range(len(contours))])
             hull = cv2.convexHull(all_contours)
-            
-            # Draw the comprehensive outline onto the original image
-            cv2.drawContours(original_image, [hull], -1, (0, 0, 255), 2)
-            
-            # Optionally, draw red 'X' at the centroid of t     he hull if needed
+
+            # Create a copy of the thresholded image to draw on
+            contour_overlay_image = thresholded_image.copy()
+
+            # Convert to BGR to draw colored contours
+            contour_overlay_image = cv2.cvtColor(contour_overlay_image, cv2.COLOR_GRAY2BGR)
+
+            # Draw the comprehensive outline onto the contour_overlay_image
+            cv2.drawContours(contour_overlay_image, [hull], -1, (0, 0, 255), 2)
+
+            # Optionally, draw red 'X' at the centroid of the hull
             M = cv2.moments(hull)
             if M["m00"] != 0:
                 cx, cy = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
                 size = 10
-                cv2.line(original_image, (cx - size, cy - size), (cx + size, cy + size), (0, 0, 255), 2)
-                cv2.line(original_image, (cx + size, cy - size), (cx - size, cy + size), (0, 0, 255), 2)
+                cv2.line(contour_overlay_image, (cx - size, cy - size), (cx + size, cy + size), (0, 0, 255), 2)
+                cv2.line(contour_overlay_image, (cx + size, cy - size), (cx - size, cy + size), (0, 0, 255), 2)
     else:
         # If image is too dark or too bright even after max attempts, classify as bad image
         beam_classification = 'Bad image'
-        
-    # Save the contour image
-    contour_image_path = os.path.join(intermediate_dir, f'{base_name}_contour.png')
-    if beam_classification == 'normal beam':
-        # If it's a normal beam, save the original image with the contour drawn on it
-        cv2.imwrite(contour_image_path, original_image)
-    else:
-        # If it's not a normal beam, save the final threshold image as the contour image
-        cv2.imwrite(contour_image_path, thresholded_image)
+        # Handling for non-'normal beam' cases...
+        contour_overlay_image = cv2.cvtColor(thresholded_image, cv2.COLOR_GRAY2BGR)
 
-    # Save the final image in the specific folder
-    final_image_path = os.path.join(intermediate_dir, f'{base_name}_processed.png')
-    cv2.imwrite(final_image_path, original_image)
+    # Save the contour image (or final processed image in your case)
+    contour_image_path = os.path.join(intermediate_dir, f'{base_name}_contour.png')
+    if contour_overlay_image is not None:
+        cv2.imwrite(contour_image_path, contour_overlay_image)
+        final_image_path = contour_image_path  # Assign the contour image path as the final image path
+    else:
+        # Handle cases where no contour image is generated
+        # This could include saving the original, thresholded, or a blank image as a placeholder
+        # For the purpose of illustration, we're defaulting to the original image's path
+        final_image_path = original_image_path
 
     return {
         'final_path': final_image_path,
