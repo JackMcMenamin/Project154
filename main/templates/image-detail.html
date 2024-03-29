@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image in Depth</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif;
+            background-image: url('/static/background.jpg'); /* Use the same background image */
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-position: center;
+        }
+        .details-container {
+            padding: 20px;
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.8); /* Add a semi-transparent overlay for readability */
+            border-radius: 5px; /* Optional: rounds the corners of the container */
+            margin: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: adds a shadow for a "card" effect */
+        }
+        h1 {
+            color: #333; /* Dark grey color for the title */
+            margin-bottom: 0.5em;
+        }
+        img {
+            max-width: 100%;
+            max-height: 200px; /* Adjust the image sizes if needed */
+            margin-bottom: 10px;
+            border: 1px solid #ccc; /* Add a border to each image */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Optional: adds a subtle shadow to the images */
+        }
+        .image-caption {
+            text-align: center;
+            color: #777;
+            font-style: italic;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+        .image-container {
+            display: inline-block;
+            margin: 10px;
+            vertical-align: top;
+        }
+    </style>
+</head>
+<body>
+    <div class="details-container">
+        <!-- The image name will be inserted here in the H1 title -->
+        <h1 id="image-title"></h1>
+        <div id="intermediate-images-container"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageName = new URLSearchParams(window.location.search).get('name');
+            const imageTitle = document.getElementById('image-title');
+            const intermediateImagesContainer = document.getElementById('intermediate-images-container');
+
+            if (imageName) {
+                // Update the page title and heading
+                document.title = imageName + " In Depth";
+                imageTitle.textContent = imageName + " In Depth";
+                fetch(`/get-intermediate-images?name=${encodeURIComponent(imageName)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.intermediate_images) {
+                        data.intermediate_images.forEach(fileName => {
+                            let imagePath = `/static/processed/${imageName}/${fileName}`;
+                            appendImageWithCaption(intermediateImagesContainer, imagePath, fileName);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching intermediate images:', error);
+                    imageInfoDiv.textContent = 'Error fetching images.';
+                });
+            } else {
+                imageInfoDiv.textContent = 'No image name provided.';
+            }
+        });
+
+        function appendImageWithCaption(container, src, caption) {
+            let imageWrapper = document.createElement('div');
+            imageWrapper.classList.add('image-container');
+            
+            let img = document.createElement('img');
+            img.src = src;
+            img.classList.add('step-image');
+            img.alt = caption;
+            imageWrapper.appendChild(img);
+            
+            let captionDiv = document.createElement('div');
+            captionDiv.textContent = caption.split('.')[0].replace('_', ' '); // Format file name
+            captionDiv.classList.add('image-caption');
+            imageWrapper.appendChild(captionDiv);
+            
+            container.appendChild(imageWrapper);
+        }
+    </script>
+</body>
+</html>
+
+
+
+

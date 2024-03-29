@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Categorising and fitting spatially resolved radiation profiles</title>
+    <style>
+        body { 
+            /* Add these lines for the background image, adjust the path as needed */
+            background-image: url('/static/background.jpg');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-position: center;
+
+            /* Your existing styles */
+            font-family: Arial, sans-serif;
+         }
+        .row { display: flex; justify-content: center; align-items: flex-start; margin-top: 20px; }
+        .column { flex: 1; padding: 5px; text-align: center; }
+        img { max-width: 100%; max-height: 400px; }
+        button { padding: 10px 20px; font-size: 18px; margin-bottom: 10px; } /* Increased button size */
+        .metrics-content {
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-top: 10px; /* Aligns with images */
+        }
+        .overall-metrics {
+            background-color: rgba(248, 248, 248, 0.9); /* Adjust transparency as needed */
+            border: 1px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 20px; /* Add space below the box */
+            /* Increase the height or remove it to allow the box to grow with content */
+            min-height: 150px; /* Adjust minimum height as needed */
+            overflow: auto; /* Add scroll if content overflows */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Optional: Adds a subtle shadow */
+        }
+        input[type="file"] {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .image-container {
+            display: inline-block;
+            margin: 5px;
+            width: calc(20% - 10px); /* Adjust width to fit 5 images per row, accounting for margin */
+            vertical-align: top; /* Align the tops of the images */
+        }
+
+        .image-container img {
+            cursor: pointer; /* This will change the cursor to the 'hand' pointer when hovering over the images */
+        }        
+        
+        .image-name {
+            display: block;
+            margin-top: 5px; /* Space between the image and the name */
+            font-size: 12px; /* Adjust the size as needed */
+            color: #666; /* A lighter text color for the names */
+            text-align: center; /* Center-align the text */
+            margin-bottom: 5px; /* Add some space between the image name and the image */
+        }              
+        
+        .overall-metrics table {
+            width: 100%; /* Make the table take the full width of its container */
+            border-collapse: collapse; /* Collapse borders */
+            table-layout: fixed; /* Optional: helps with equal width columns */
+        }
+        
+        .overall-metrics td {
+            padding: 10px; /* Add some padding around each cell */
+            border: 1px solid #ccc; /* Add a border to each cell */
+            text-align: left; /* Align text to the left */
+            vertical-align: top; /* Align the content at the top of the cell */
+        }
+        
+        @media (max-width: 800px) {
+            .image-gallery img {
+                /* For smaller screens, each image can take more space, like 50% of the container width */
+                flex: 0 0 calc(50% - 10px);
+                max-width: calc(50% - 10px);
+            }
+        }
+        
+        @media (max-width: 500px) {
+            .image-gallery img {
+                /* For even smaller screens, each image can take full width of the container */
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Categorising and fitting spatially resolved radiation profiles</h1>
+    <form id="upload-form" action="http://localhost:5000/process-images" method="post" enctype="multipart/form-data">
+        <input type="file" name="images" id="file-input" accept="image/*" multiple webkitdirectory>
+        <button type="submit">Process Images</button>
+    </form>  
+
+    <!-- Container for Overall Metrics -->
+    <div class="overall-metrics">Overall Metrics</div>
+    
+    <!-- Container for Processed Images -->
+    <div class="image-gallery" id="image-gallery"></div>
+
+    <div class="buttons-container">
+        <button type="button" onclick="showProcessedImages('original')">Original</button>
+        <button type="button" onclick="showProcessedImages('grayscaled')">Grayscaled</button>
+        <button type="button" onclick="showProcessedImages('thresholded')">Thresholded</button>
+        <button type="button" onclick="showProcessedImages('contour')">Contour</button>
+        <button type="button" onclick="showProcessedImages('processed')">Processed</button>
+    </div>
+    
+    
+    <script>    
+        // Define allImagesData in the global scope so it's accessible in showProcessedImages function
+        let allImagesData = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('upload-form');
+            form.addEventListener('submit', function(event) {
+                console.log('Form submission triggered');
+                event.preventDefault();
+                const formData = new FormData(form);
+                fetch('http://localhost:5000/process-images', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Data received:', data); // Check the structure of `data`
+                    if (data && data.images) {
+                        allImagesData = data.images; // Assign the images to the global variable
+                        displayProcessedImages(allImagesData);
+                    } else {
+                        console.error('Invalid or no image data received', data);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            });
+        });
+
+        function displayOverallMetrics(metrics) {
+            // Assuming `metrics` is an object like { metricName: value, ... }
+            const overallMetricsContainer = document.querySelector('.overall-metrics');
+            let metricsHtml = '<h3>Overall Metrics:</h3><table><tr>';
+        
+            // Keep count of the metrics to create a new row after every few metrics
+            let count = 0;
+            const metricsPerRow = 3; // Number of metrics to display per row
+        
+            // Loop through the metrics object and add each metric to the metricsHtml string
+            for (const [key, value] of Object.entries(metrics)) {
+                if (count % metricsPerRow === 0 && count !== 0) {
+                    metricsHtml += '</tr><tr>'; // End the current row and start a new one
+                }
+                metricsHtml += `<td><strong>${formatMetricName(key)}:</strong> ${value.toFixed(2)}</td>`;
+                count++;
+            }
+        
+            metricsHtml += '</tr></table>'; // Close the last row and the table
+        
+            // Update the innerHTML of the overall-metrics container
+            overallMetricsContainer.innerHTML = metricsHtml;
+        }
+        
+        // Helper function to format the metric name into a more human-readable format
+        function formatMetricName(metricName) {
+            return metricName
+                .replace(/_/g, ' ')         // Replace underscores with spaces
+                .replace(/([A-Z])/g, ' $1') // Add a space before any uppercase letters
+                .toLowerCase()              // Convert to lowercase
+                .replace(/^./, function(str){ return str.toUpperCase(); }) // Capitalize the first letter
+                // This will turn 'average_blob_area' into 'Average blob area'
+        }
+        
+        // Call this function after you receive the data from the backend to update the overall metrics displayed on the frontend
+        displayOverallMetrics(data.overall_metrics);
+
+        function displayProcessedImages(images) {
+            console.log('Displaying processed images:', images);
+            const gallery = document.getElementById('image-gallery');
+            gallery.innerHTML = ''; // Clear the gallery
+        
+            // Sort the images before displaying
+            const sortedImages = sortImagesByBaseDir(images); 
+            
+            // Loop over the sorted images and create gallery items
+            sortedImages.forEach((imageData, index) => {  // Include the 'index' parameter here
+                const baseDir = getBaseDir(imageData.original_image_path);
+                const imageNameDiv = document.createElement('div');
+                imageNameDiv.textContent = baseDir;
+                imageNameDiv.classList.add('image-name');
+        
+                const imageContainer = document.createElement('div');
+                imageContainer.classList.add('image-container');
+                imageContainer.appendChild(imageNameDiv);
+        
+                const img = document.createElement('img');
+                const newFileName = `${baseDir}_final_processed.png`;
+                const imageUrl = `/static/processed/${baseDir}/${newFileName}?v=${new Date().getTime()}`;
+                img.src = imageUrl;
+                img.alt = 'Processed image';
+                imageContainer.appendChild(img);
+        
+                // Add click event listener to the image
+                img.addEventListener('click', () => navigateToDetailPage(imageData, index));
+        
+                gallery.appendChild(imageContainer);
+            });
+        }
+                 
+        
+        function navigateToDetailPage(imageData, index) {
+            // Determine the base name correctly based on your imageData structure
+            const baseName = getBaseDir(imageData.original_image_path); // Or another appropriate method
+        
+            // Set the currentImage data in localStorage
+            localStorage.setItem('currentImage', JSON.stringify({image: imageData, index: index}));
+        
+            // Redirect to the image details page, optionally passing a query parameter
+            window.location.href = `/image-detail?name=${encodeURIComponent(baseName)}`;
+        }            
+        
+        function createImageContainer(baseName, imageUrl) {
+            const imageContainer = document.createElement('div');
+            imageContainer.classList.add('image-container');
+            
+            // Create the image name div
+            const imageNameDiv = document.createElement('div');
+            imageNameDiv.textContent = baseName;
+            imageNameDiv.classList.add('image-name');
+            imageContainer.appendChild(imageNameDiv);
+            
+            // Create the img element
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = baseName;
+            imageContainer.appendChild(img);
+        
+            return imageContainer;
+        }
+        
+        function constructImageUrl(baseName, fileName) {
+            // Construct the correct relative path for the image
+            return '/static/processed/' + baseName + '/' + fileName + '?v=' + new Date().getTime();
+        }
+
+        function getBaseDir(path) {
+            const parts = path.split('\\'); // or use path.split('/') on non-Windows systems
+            return parts[parts.length - 2]; // The directory name is the second last part of the path
+        }
+
+        function showProcessedImages(stage) {
+            const gallery = document.getElementById('image-gallery');
+            gallery.innerHTML = ''; // Clear the gallery before adding new images
+
+            const sortedImages = sortImagesByBaseDir(allImagesData); // Sort the images before displaying
+        
+            sortedImages.forEach((imageData) => {
+                const baseDir = getBaseDir(imageData.original_image_path);
+                let newFileName;
+        
+                // Adjust the case to match the stages you have, like 'original', 'grayscaled', etc.
+                switch (stage) {
+                    case 'original':
+                        newFileName = `${baseDir}_original.png`;
+                        break;
+                    case 'grayscaled':
+                        newFileName = `${baseDir}_gray.png`;
+                        break;
+                    case 'thresholded':
+                        newFileName = `${baseDir}_final_threshold.png`;
+                        break;
+                    case 'contour':
+                        newFileName = `${baseDir}_contour.png`;
+                        break;
+                    case 'processed':
+                        newFileName = `${baseDir}_final_processed.png`;
+                        break;
+                    // add more cases if needed
+                }
+        
+                const imageUrl = `/static/processed/${baseDir}/${newFileName}?v=${new Date().getTime()}`;
+                const imageContainer = createImageContainer(baseDir, imageUrl);
+                gallery.appendChild(imageContainer);
+            });
+        }
+
+        function sortImagesByBaseDir(images) {
+            return images.sort((a, b) => {
+              const baseDirA = getBaseDir(a.original_image_path).toUpperCase(); // Convert to uppercase for case-insensitive comparison
+              const baseDirB = getBaseDir(b.original_image_path).toUpperCase(); // Convert to uppercase for case-insensitive comparison
+              return baseDirA.localeCompare(baseDirB, undefined, { numeric: true, sensitivity: 'base' });
+            });
+          }
+          
+        
+
+    </script>
+    
+</body>
+</html>
