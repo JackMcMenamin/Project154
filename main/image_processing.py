@@ -35,6 +35,41 @@ class ImageProcessor:
         cnt_scaled = cnt_scaled.astype(np.int32)
         return cnt_scaled
     
+    def extract_blob_contents(self, final_processed_image_path, original_image_path):
+        # Read the final processed image with the red outline
+        final_image = cv2.imread(final_processed_image_path)
+        
+        # Read the original image to extract the blob from
+        original_image = cv2.imread(original_image_path)
+
+        # Step 2: Create a mask for the red outline
+        # Red in BGR is (0, 0, 255), but let's add a tolerance since the exact color might vary slightly
+        lower_red = np.array([0, 0, 200])
+        upper_red = np.array([50, 50, 255])
+        red_mask = cv2.inRange(final_image, lower_red, upper_red)
+        
+        # Step 3: Find contours on the red mask
+        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Step 4: Create a mask for the inside of the red outline
+        # Assuming the largest contour is the blob's outline, adjust as necessary
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            blob_mask = np.zeros_like(red_mask)
+            cv2.fillPoly(blob_mask, [largest_contour], 255)
+            
+            # Step 5: Extract the blob using the mask
+            extracted_blob = cv2.bitwise_and(original_image, original_image, mask=blob_mask)
+            
+            # Generate a unique file name for the extracted blob
+            base_name = os.path.splitext(os.path.basename(original_image_path))[0]
+            extracted_blob_path = os.path.join(os.path.dirname(final_processed_image_path), f"{base_name}_extracted_blob.png")
+            
+            # Save the extracted blob using the new path
+            cv2.imwrite(extracted_blob_path, extracted_blob)
+            
+            return extracted_blob_path
+    
     def beam_classification(self, thresholded_image):
         """
         Classify the image based on the percentage of white pixels.
@@ -81,9 +116,11 @@ class ImageProcessor:
         if classification == 'normal beam':
             contour_overlay_image, contour_image_path = self.normal_image_processing(thresholded_image, original_image, base_name, intermediate_dir)
             final_image_path = self.combine_contour_with_original(original_image, contour_overlay_image, base_name, intermediate_dir)
+            blob_extraction_path = self.extract_blob_contents(final_image_path, original_image_path)
         else:
             contour_image_path = thresholded_image
             final_image_path = original_image_path
+            blob_extraction_path = original_image_path
 
         self.logger.info(f"Image processing completed for: {image_path}")
 
@@ -93,6 +130,7 @@ class ImageProcessor:
             'final_thresholded_image_path': final_thresholded_image_path,
             'contour_image_path': contour_image_path,
             'final_image_path': final_image_path,
+            'blob_extraction_path': blob_extraction_path
         }
         logging.info(f"Processing result for {image_path}: {result}")
         return result
@@ -185,8 +223,6 @@ class ImageProcessor:
         combined_image_path = self.save_intermediate_image(combined_image, intermediate_dir, base_name, 'final_processed')
         
         return combined_image_path
-
-
 
     def save_final_processed_image(self, image, dir_path, base_name):
     # Assuming 'image' is the image with contours drawn on it
