@@ -1,44 +1,28 @@
-import cv2
+from scipy.optimize import curve_fit
 import numpy as np
-from image_processing import ImageProcessor
 
-def calculate_light_intensity(image_path, contour):
-    # Load the image in grayscale mode
-    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    
-    # If the image couldn't be loaded, return None
-    if image is None:
-        return None
-    
-    # Create a mask image that is the same size as the original and fill it with zeros (black)
-    mask = np.zeros_like(image)
-    
-    # Fill the contour on the mask with white color
-    cv2.drawContours(mask, [contour], -1, 255, -1)
-    
-    # Bitwise AND the mask and the original image to isolate the blob
-    masked_image = cv2.bitwise_and(image, image, mask=mask)
-    
-    # Calculate the sum of all pixel values in the masked image
-    # Assuming pixel value corresponds to intensity
-    total_intensity = np.sum(masked_image)
-    
-    # Calculate the number of pixels within the blob to find the average intensity
-    area = cv2.contourArea(contour)
-    average_intensity = total_intensity / area if area != 0 else 0
-    
-    # Optionally, calibration to physical units can be done here
-    
-    # Return the total and average intensity
-    return total_intensity, average_intensity
+def gaussian(x, y, amplitude, xo, yo, sigma_x, sigma_y, theta):
+    xo = float(xo)
+    yo = float(yo)    
+    a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
+    b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
+    c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
+    g = amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) + c*((y-yo)**2)))
+    return g.ravel()
 
-if __name__ == "__main__":
-    # Example usage - you'd replace 'path_to_image' and 'contour' with actual values
-    path_to_image = 'path_to_your_image.png'
-    contour = np.array([[x1, y1], [x2, y2], ...])  # replace with actual contour coordinates
-    
-    # Calculate the intensity
-    total_intensity, average_intensity = calculate_light_intensity(path_to_image, contour)
-    
-    print(f"Total Intensity: {total_intensity}")
-    print(f"Average Intensity: {average_intensity}")
+# Assuming 'data' is a 2D array from the thresholded beam profile, with 0 for background and 1 for beam pixels.
+x = np.linspace(0, data.shape[1], data.shape[1])
+y = np.linspace(0, data.shape[0], data.shape[0])
+x, y = np.meshgrid(x, y)
+
+# Initial guesses for Gaussian parameters
+initial_guess = (3, data.shape[1]/2, data.shape[0]/2, 20, 20, 0)
+
+# Perform the fitting
+params, pcov = curve_fit(gaussian, (x, y), data.ravel(), p0=initial_guess)
+
+# Extract the parameters
+amplitude, xo, yo, sigma_x, sigma_y, theta = params
+
+# Now you can use amplitude, xo, yo, sigma_x, sigma_y, theta to calculate fit metrics.
+

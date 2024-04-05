@@ -115,6 +115,7 @@
         <button type="button" onclick="showProcessedImages('thresholded')">Thresholded</button>
         <button type="button" onclick="showProcessedImages('contour')">Contour</button>
         <button type="button" onclick="showProcessedImages('processed')">Processed</button>
+        <button type="button" onclick="showProcessedImages('extracted')">Extracted Blob</button>
     </div>
     
     
@@ -184,37 +185,26 @@
         displayOverallMetrics(data.overall_metrics);
 
         function displayProcessedImages(images) {
-            console.log('Displaying processed images:', images);
             const gallery = document.getElementById('image-gallery');
-            gallery.innerHTML = ''; // Clear the gallery
+            gallery.innerHTML = ''; // Clear the gallery before adding new images
+
+            // Sort the images by base directory name
+            const sortedImages = sortImagesByBaseDir(images);
         
-            // Sort the images before displaying
-            const sortedImages = sortImagesByBaseDir(images); 
-            
-            // Loop over the sorted images and create gallery items
-            sortedImages.forEach((imageData, index) => {  // Include the 'index' parameter here
-                const baseDir = getBaseDir(imageData.original_image_path);
-                const imageNameDiv = document.createElement('div');
-                imageNameDiv.textContent = baseDir;
-                imageNameDiv.classList.add('image-name');
+            sortedImages.forEach((imageData) => {
+                const baseDir = getBaseDir(imageData.original_image_path); // Your function to get the base directory
+                const imageClassification = imageData.image_classification; // Adjust if your key is different
         
-                const imageContainer = document.createElement('div');
-                imageContainer.classList.add('image-container');
-                imageContainer.appendChild(imageNameDiv);
-        
-                const img = document.createElement('img');
-                const newFileName = `${baseDir}_final_processed.png`;
-                const imageUrl = `/static/processed/${baseDir}/${newFileName}?v=${new Date().getTime()}`;
-                img.src = imageUrl;
-                img.alt = 'Processed image';
-                imageContainer.appendChild(img);
-        
-                // Add click event listener to the image
-                img.addEventListener('click', () => navigateToDetailPage(imageData, index));
-        
+                // Use the `createImageContainer` function to create the image element
+                const imageUrl = constructImageUrl(baseDir, `${baseDir}_final_processed.png`); // Use the correct filename here
+                const imageContainer = createImageContainer(`${baseDir} - ${imageClassification}`, imageUrl);
+                
                 gallery.appendChild(imageContainer);
             });
         }
+        
+        
+        
                  
         
         function navigateToDetailPage(imageData, index) {
@@ -228,29 +218,31 @@
             window.location.href = `/image-detail?name=${encodeURIComponent(baseName)}`;
         }            
         
-        function createImageContainer(baseName, imageUrl) {
+        function createImageContainer(imageTitle, imageUrl) {
             const imageContainer = document.createElement('div');
             imageContainer.classList.add('image-container');
-            
-            // Create the image name div
-            const imageNameDiv = document.createElement('div');
-            imageNameDiv.textContent = baseName;
-            imageNameDiv.classList.add('image-name');
-            imageContainer.appendChild(imageNameDiv);
-            
+        
+            // Create the image title div
+            const imageTitleDiv = document.createElement('div');
+            imageTitleDiv.textContent = imageTitle;
+            imageTitleDiv.classList.add('image-name');
+            imageContainer.appendChild(imageTitleDiv);
+        
             // Create the img element
             const img = document.createElement('img');
             img.src = imageUrl;
-            img.alt = baseName;
+            img.alt = imageTitle;
             imageContainer.appendChild(img);
         
             return imageContainer;
         }
         
+        
         function constructImageUrl(baseName, fileName) {
-            // Construct the correct relative path for the image
-            return '/static/processed/' + baseName + '/' + fileName + '?v=' + new Date().getTime();
+            // The base URL might need to be adjusted based on where the server is serving the images
+            return `/static/processed/${baseName}/${fileName}`;
         }
+        
 
         function getBaseDir(path) {
             const parts = path.split('\\'); // or use path.split('/') on non-Windows systems
@@ -284,7 +276,9 @@
                     case 'processed':
                         newFileName = `${baseDir}_final_processed.png`;
                         break;
-                    // add more cases if needed
+                    case 'extracted':
+                        newFileName = `${baseDir}_preserved_brightness.png`;
+                        break;
                 }
         
                 const imageUrl = `/static/processed/${baseDir}/${newFileName}?v=${new Date().getTime()}`;
@@ -294,12 +288,16 @@
         }
 
         function sortImagesByBaseDir(images) {
+            // This assumes your base names are in the format "runXX_ShotYY"
             return images.sort((a, b) => {
-              const baseDirA = getBaseDir(a.original_image_path).toUpperCase(); // Convert to uppercase for case-insensitive comparison
-              const baseDirB = getBaseDir(b.original_image_path).toUpperCase(); // Convert to uppercase for case-insensitive comparison
-              return baseDirA.localeCompare(baseDirB, undefined, { numeric: true, sensitivity: 'base' });
+                // Extract the shot number from the base directory name
+                const shotNumberA = parseInt(a.original_image_path.match(/Shot(\d+)/i)[1], 10);
+                const shotNumberB = parseInt(b.original_image_path.match(/Shot(\d+)/i)[1], 10);
+        
+                return shotNumberA - shotNumberB;
             });
-          }
+        }
+        
           
         
 

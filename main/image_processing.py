@@ -35,40 +35,36 @@ class ImageProcessor:
         cnt_scaled = cnt_scaled.astype(np.int32)
         return cnt_scaled
     
-    def extract_blob_contents(self, final_processed_image_path, original_image_path):
-        # Read the final processed image with the red outline
-        final_image = cv2.imread(final_processed_image_path)
-        
-        # Read the original image to extract the blob from
-        original_image = cv2.imread(original_image_path)
+    def extract_blob_contents(self, final_processed_image_path, original_image_path, classification):
+        # This method now accepts classification as a parameter
+        base_name = os.path.splitext(os.path.basename(original_image_path))[0]
+        extracted_blob_path = os.path.join(os.path.dirname(final_processed_image_path), f"{base_name}_extracted_blob.png")
 
-        # Step 2: Create a mask for the red outline
-        # Red in BGR is (0, 0, 255), but let's add a tolerance since the exact color might vary slightly
-        lower_red = np.array([0, 0, 200])
-        upper_red = np.array([50, 50, 255])
-        red_mask = cv2.inRange(final_image, lower_red, upper_red)
+        if classification == 'normal beam':
+            # Proceed with extracting the blob from the image with red outline
+            final_image = cv2.imread(final_processed_image_path)
+            lower_red = np.array([0, 0, 200])
+            upper_red = np.array([50, 50, 255])
+            red_mask = cv2.inRange(final_image, lower_red, upper_red)
+            contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if contours:
+                largest_contour = max(contours, key=cv2.contourArea)
+                blob_mask = np.zeros_like(red_mask)
+                cv2.fillPoly(blob_mask, [largest_contour], 255)
+                original_image = cv2.imread(original_image_path)
+                extracted_blob = cv2.bitwise_and(original_image, original_image, mask=blob_mask)
+            else:
+                # If no contours found, use the original image
+                extracted_blob = cv2.imread(original_image_path)
+        else:
+            # For 'bad' images, use the original image
+            extracted_blob = cv2.imread(original_image_path)
+
+        # Save the extracted blob using the new path
+        cv2.imwrite(extracted_blob_path, extracted_blob)
         
-        # Step 3: Find contours on the red mask
-        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Step 4: Create a mask for the inside of the red outline
-        # Assuming the largest contour is the blob's outline, adjust as necessary
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
-            blob_mask = np.zeros_like(red_mask)
-            cv2.fillPoly(blob_mask, [largest_contour], 255)
-            
-            # Step 5: Extract the blob using the mask
-            extracted_blob = cv2.bitwise_and(original_image, original_image, mask=blob_mask)
-            
-            # Generate a unique file name for the extracted blob
-            base_name = os.path.splitext(os.path.basename(original_image_path))[0]
-            extracted_blob_path = os.path.join(os.path.dirname(final_processed_image_path), f"{base_name}_extracted_blob.png")
-            
-            # Save the extracted blob using the new path
-            cv2.imwrite(extracted_blob_path, extracted_blob)
-            
-            return extracted_blob_path
+        return extracted_blob_path
     
     def beam_classification(self, thresholded_image):
         """
@@ -84,7 +80,7 @@ class ImageProcessor:
         total_pixels = thresholded_image.size
         white_area_ratio = (white_pixels / total_pixels) * 100
         
-        if white_area_ratio > 10:
+        if white_area_ratio > 15:
             return 'normal beam'
         else:
             return 'bad image'
@@ -107,20 +103,25 @@ class ImageProcessor:
         gray_image_path = self.save_intermediate_image(gray_image, intermediate_dir, base_name, 'gray')
 
         # Thresholding
-        thresholded_image, final_thresholded_image_path = self.apply_adaptive_thresholding(gray_image, base_name, intermediate_dir)
+        thresholded_image, final_thresholded_image_path, classification, preserved_brightness_image_path = self.apply_adaptive_thresholding(original_image, gray_image, base_name, intermediate_dir)
         
-        # Classify the image
-        classification = self.beam_classification(thresholded_image)
+        contour_overlay_image, contour_image_path, classification = self.normal_image_processing(thresholded_image, original_image, base_name, intermediate_dir)
         
-        # Save the final processed image
-        if classification == 'normal beam':
-            contour_overlay_image, contour_image_path = self.normal_image_processing(thresholded_image, original_image, base_name, intermediate_dir)
+        # Initialize the path variables
+        blob_extraction_path = None
+        final_image_path = None
+
+        if classification == 'normal beam' and contour_overlay_image is not None:
             final_image_path = self.combine_contour_with_original(original_image, contour_overlay_image, base_name, intermediate_dir)
-            blob_extraction_path = self.extract_blob_contents(final_image_path, original_image_path)
+            contour_image_path = final_thresholded_image_path  # For 'normal beam', contour image is the one with drawn contours
         else:
-            contour_image_path = thresholded_image
-            final_image_path = original_image_path
-            blob_extraction_path = original_image_path
+            # For 'bad' images:
+            # - Save the thresholded image again, but with the 'contour' suffix to follow the naming convention.
+            contour_image_path = self.save_intermediate_image(thresholded_image, intermediate_dir, base_name, 'contour')
+            
+            # - Save a copy of the original image as the final processed image, also following the naming convention.
+            final_image_path = os.path.join(intermediate_dir, f"{base_name}_final_processed.png")
+            cv2.imwrite(final_image_path, original_image)
 
         self.logger.info(f"Image processing completed for: {image_path}")
 
@@ -128,48 +129,68 @@ class ImageProcessor:
             'original_image_path': original_image_path,
             'gray_image_path': gray_image_path,
             'final_thresholded_image_path': final_thresholded_image_path,
-            'contour_image_path': contour_image_path,
+            'contour_image_path': contour_image_path,  # Adjusted to reflect the final thresholded image for 'bad' images
             'final_image_path': final_image_path,
-            'blob_extraction_path': blob_extraction_path
+            'blob_extraction_path': preserved_brightness_image_path,
+            'image_classification': classification
         }
         logging.info(f"Processing result for {image_path}: {result}")
         return result
+
 
     def save_intermediate_image(self, image, dir_path, base_name, suffix):
         image_path = os.path.join(dir_path, f"{base_name}_{suffix}.png")
         cv2.imwrite(image_path, image)
         return image_path
 
-    def apply_adaptive_thresholding(self, gray_image, base_name, intermediate_dir):
-        # Bring over the thresholding and brightness adjustment logic from your old code
+    def apply_adaptive_thresholding(self, original_image, gray_image, base_name, intermediate_dir):
         threshold_value = 100  # Start with a baseline threshold value
         max_attempts = 110  # Allow a certain number of attempts to adjust brightness
         enhancement_factor = 1  # How much to brighten the image if it's too dark
-        darkening_factor = 1  # How much to darken the image if it's too bright
+        darkening_factor = -1  # How much to darken the image if it's too bright
         attempt = 0  # Keep track of the number of attempts
         white_area_ratio = None  # Track the white area ratio for diagnostics
+        beam_classification = None
+        original_color_image = original_image.copy()  # Make a copy of the original color image
         
         while attempt < max_attempts:
             _, thresholded_image = cv2.threshold(gray_image, threshold_value, 255, cv2.THRESH_BINARY)
-            # Save each thresholding attempt if necessary for debugging
-            # self.save_intermediate_image(thresholded_image, intermediate_dir, base_name, f'thresholded_{attempt}')
-            
             white_pixels = cv2.countNonZero(thresholded_image)
             total_pixels = gray_image.size
             white_area_ratio = (white_pixels / total_pixels) * 100
-            
+
+            # Use the old code's logic for adjusting brightness and classification
             if white_area_ratio < 15:
-                gray_image = np.clip(gray_image + enhancement_factor, 0, 255).astype(np.uint8)
+                beam_classification = 'image too dark'
+                gray_image = cv2.add(gray_image, enhancement_factor)
             elif white_area_ratio > 40:
-                gray_image = np.clip(gray_image - darkening_factor, 0, 255).astype(np.uint8)
+                beam_classification = 'image too bright'
+                gray_image = cv2.add(gray_image, darkening_factor)
             else:
-                # If the white area ratio is within acceptable bounds, break from the loop
-                break
-            
+                beam_classification = 'normal beam'
+                break  # Exit the loop if image is classified as normal
+
             attempt += 1
+
+        if beam_classification != 'normal beam':
+            # If image is too dark or too bright even after max attempts, classify as bad image
+            beam_classification = 'bad image'
+
+        # Convert the thresholded binary image back to a 3-channel image
+        color_thresholded_image = cv2.cvtColor(thresholded_image, cv2.COLOR_GRAY2BGR)
+
+        # Create a mask for the original bright areas
+        mask = color_thresholded_image.astype(bool)
+
+        # Apply the mask to the original image to preserve the brightness of non-black areas
+        preserved_brightness_image = np.where(mask, original_color_image, 0)
+
+        # Save the thresholded image with preserved brightness
+        preserved_brightness_image_path = self.save_intermediate_image(preserved_brightness_image, intermediate_dir, base_name, 'preserved_brightness')
         
         final_thresholded_image_path = self.save_intermediate_image(thresholded_image, intermediate_dir, base_name, 'final_threshold')
-        return thresholded_image, final_thresholded_image_path
+        return thresholded_image, final_thresholded_image_path, beam_classification, preserved_brightness_image_path
+
 
     def normal_image_processing(self, thresholded_image, original_image, base_name, intermediate_dir):
         # Make a color version of the thresholded image to draw colored contours on
@@ -183,14 +204,17 @@ class ImageProcessor:
         # Find contours on the opened (cleaned up) thresholded image
         contours, _ = cv2.findContours(opened_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        if contours:
+        # Call analyze_contours to determine if the image is 'normal' or 'bad'
+        classification = self.analyse_contours(contours, original_image.shape)
+        
+        if classification == 'normal beam':
             # Proceed if contours were found
             all_contours = np.vstack([contour for contour in contours])
             hull = cv2.convexHull(all_contours)
             scaled_hull = ImageProcessor.scale_contour(hull, 1.1)
             # Draw the scaled hull as a comprehensive outline onto the contour_overlay_image
             cv2.drawContours(contour_overlay_image, [scaled_hull], -1, (0, 0, 255), 2)
-
+            
             # Optionally, mark the centroid of the hull
             M = cv2.moments(hull)
             if M["m00"] != 0:
@@ -198,13 +222,30 @@ class ImageProcessor:
                 size = 10
                 cv2.line(contour_overlay_image, (cx - size, cy - size), (cx + size, cy + size), (0, 0, 255), 2)
                 cv2.line(contour_overlay_image, (cx + size, cy - size), (cx - size, cy + size), (0, 0, 255), 2)
-            else:
-                self.logger.error("No contours found in image. Using thresholded image as fallback.")
-        
-        # Save the contour overlay image which is the thresholded image with contours
-        contour_image_path = self.save_intermediate_image(contour_overlay_image, intermediate_dir, base_name, 'contour')
+            
+            # Save the contour overlay image which is the thresholded image with contours
+            contour_image_path = self.save_intermediate_image(contour_overlay_image, intermediate_dir, base_name, 'contour')
 
-        return contour_overlay_image, contour_image_path
+            return contour_overlay_image, contour_image_path, 'normal beam'
+        
+        else:
+            # If analyze_contours classified the image as 'bad', handle it accordingly
+            self.logger.info(f"Contour analysis classified {base_name} as 'bad image'.")
+            return None, None, 'bad image'
+    
+    def analyse_contours(self, contours, image_shape):
+        if not contours:
+            return 'bad image'
+        
+        min_contour_area = 100
+
+        largest_contour = max(contours, key=cv2.contourArea)
+        contour_area = cv2.contourArea(largest_contour)
+        if contour_area < min_contour_area:  # self.min_contour_area to be defined based on your images
+            return 'bad image'
+        
+        return 'normal beam'
+
     
     def combine_contour_with_original(self, original_image, contour_overlay_image, base_name, intermediate_dir):
         # Create a mask where the contours are drawn
@@ -223,10 +264,40 @@ class ImageProcessor:
         combined_image_path = self.save_intermediate_image(combined_image, intermediate_dir, base_name, 'final_processed')
         
         return combined_image_path
+    
+    def apply_color_preserved_thresholding(self, original_image, gray_image, base_name, intermediate_dir):
+        threshold_value = 100  # Define the threshold value
+        _, binary_thresholded_image = cv2.threshold(gray_image, threshold_value, 255, cv2.THRESH_BINARY)
+
+        # This mask will have the shape of the original image but will contain the thresholded results
+        color_preserved_mask = cv2.cvtColor(binary_thresholded_image, cv2.COLOR_GRAY2BGR)
+
+        # Where the mask is white, we use the original image; where it is black, we assign black pixels.
+        color_preserved_thresholded_image = np.where(color_preserved_mask == np.array([255, 255, 255]), original_image, 0)
+
+        # Save the color-preserved thresholded image
+        color_preserved_thresholded_image_path = self.save_intermediate_image(color_preserved_thresholded_image, intermediate_dir, base_name, 'color_preserved_threshold')
+        
+        return color_preserved_thresholded_image, color_preserved_thresholded_image_path
+
 
     def save_final_processed_image(self, image, dir_path, base_name):
     # Assuming 'image' is the image with contours drawn on it
         return self.save_intermediate_image(image, dir_path, base_name, 'final_processed')
+    
+    def check_for_red_lines(self, contour_overlay_image):
+        # Count the number of red pixels, which are pixels where the red channel is 255 and the other two are less than a threshold.
+        red_pixels = np.sum((contour_overlay_image[:, :, 2] == 255) &
+                            (contour_overlay_image[:, :, 1] < 200) &
+                            (contour_overlay_image[:, :, 0] < 200))
+        total_pixels = contour_overlay_image.shape[0] * contour_overlay_image.shape[1]
+        red_pixel_ratio = (red_pixels / total_pixels) * 100
+
+        # You may need to adjust the percentage based on your specific case.
+        if red_pixel_ratio < 1:  # If less than 1% of the image contains red lines, it might be a bad image.
+            return False
+        return True
+
 
 
 
