@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.optimize import curve_fit
 import cv2
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 class BeamMetricsCalculator:
     def __init__(self, image_path):
@@ -54,13 +56,41 @@ class BeamMetricsCalculator:
             'aspect_ratio': fitted_params[3] / fitted_params[4],
             'orientation': np.degrees(fitted_params[5]) % 360
         }
+        
+    def visualize_fit(self, data, fitted_params):
+        # Create a meshgrid to plot the data
+        x, y = self.create_meshgrid(data)
+        z = self.gaussian(x, y, *fitted_params)
+
+        fig = plt.figure(figsize=(16, 8))
+
+        # Plotting the original image
+        ax1 = fig.add_subplot(121)
+        ax1.imshow(data, origin='lower', cmap='viridis')
+        ax1.set_title('Original Image')
+
+        # Plotting the Gaussian fit
+        ax2 = fig.add_subplot(122, projection='3d')
+        ax2.plot_surface(x, y, z.reshape(x.shape), cmap='viridis', alpha=0.5)
+        ax2.contourf(x, y, z.reshape(x.shape), zdir='z', offset=np.min(z), cmap='viridis', alpha=0.5)
+        ax2.set_title('Gaussian Fit')
+
+        # Additional formatting for visibility
+        ax2.set_xlabel('X coordinate')
+        ax2.set_ylabel('Y coordinate')
+        ax2.set_zlabel('Intensity')
+
+        plt.show()
 
 # Example usage
 if __name__ == "__main__":
-    calculator = BeamMetricsCalculator('Z:\VSCode/Project154-3/main/static/processed/20210501_run04_Shot7/20210501_run04_Shot7_preserved_brightness.png')
+    calculator = BeamMetricsCalculator('Z:\VSCode/Project154-3/main/static/processed/run04_Shot7/run04_Shot7_preserved_brightness.png')
     try:
+        data = calculator.load_and_normalize_image()
+        fitted_params = calculator.fit_gaussian(data)
         metrics = calculator.calculate_metrics()
         print(metrics)
+        calculator.visualize_fit(data, fitted_params)
     except Exception as e:
         print(e)
 

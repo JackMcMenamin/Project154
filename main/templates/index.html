@@ -208,7 +208,9 @@
                 <td>Beam Intensity (amplitude)
                     <span class="info-icon" data-tooltip="Measured by the peak value of the Gaussian, representing the maximum intensity of the beam.">i</span>
                 </td>
-                <td id="intensity-value"></td>
+                <td id="intensity-value">
+                    <span class="info-icon" data-tooltip="Due to normalisation, the intensity ranges from 0 to 1, where 1 corresponds to the maximum pixel intensity.">i</span>
+                </td>
             </tr>
             <tr>
                 <td>Beam Position (centre x)
@@ -334,21 +336,22 @@
         function displayProcessedImages(images) {
             const gallery = document.getElementById('image-gallery');
             gallery.innerHTML = ''; // Clear the gallery before adding new images
-
+        
             // Sort the images by base directory name
             const sortedImages = sortImagesByBaseDir(images);
         
-            sortedImages.forEach((imageData) => {
-                const baseDir = getBaseDir(imageData.original_image_path); // Your function to get the base directory
-                const imageClassification = imageData.image_classification; // Adjust if your key is different
+            sortedImages.forEach((imageData, index) => { // Ensure 'index' is being passed here as the second argument
+                const baseDir = getBaseDir(imageData.original_image_path);
+                const imageClassification = imageData.image_classification;
         
-                // Use the `createImageContainer` function to create the image element
-                const imageUrl = constructImageUrl(baseDir, `${baseDir}_final_processed.png`); // Use the correct filename here
-                const imageContainer = createImageContainer(`${baseDir} - ${imageClassification}`, imageUrl);
-                
+                const imageUrl = constructImageUrl(baseDir, `${baseDir}_final_processed.png`);
+                // Pass the 'imageData' and 'index' to 'createImageContainer'
+                const imageContainer = createImageContainer(`${baseDir} - ${imageClassification}`, imageUrl, imageData, index);
+        
                 gallery.appendChild(imageContainer);
             });
         }
+        
 
         // Helper function to format numbers to a fixed number of decimal places for display
         function formatNumber(num) {
@@ -391,11 +394,7 @@
             return averages;
         }
 
-        
-        
-        
-                 
-        
+
         function navigateToDetailPage(imageData, index) {
             // Determine the base name correctly based on your imageData structure
             const baseName = getBaseDir(imageData.original_image_path); // Or another appropriate method
@@ -407,7 +406,7 @@
             window.location.href = `/image-detail?name=${encodeURIComponent(baseName)}`;
         }            
         
-        function createImageContainer(imageTitle, imageUrl) {
+        function createImageContainer(imageTitle, imageUrl, imageData, index) {
             const imageContainer = document.createElement('div');
             imageContainer.classList.add('image-container');
         
@@ -421,10 +420,17 @@
             const img = document.createElement('img');
             img.src = imageUrl;
             img.alt = imageTitle;
+        
+            // Add the click event listener here
+            img.addEventListener('click', function() {
+                navigateToDetailPage(imageData, index); // Pass the appropriate parameters
+            });
+        
             imageContainer.appendChild(img);
         
             return imageContainer;
         }
+        
         
         
         function constructImageUrl(baseName, fileName) {
