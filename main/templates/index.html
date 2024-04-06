@@ -45,6 +45,62 @@
             cursor: pointer;
         }
 
+        .info-icon {
+            display: inline-block;
+            margin-left: 5px;
+            width: 16px;
+            height: 16px;
+            line-height: 16px;
+            border-radius: 50%;
+            text-align: center;
+            background-color: #e0e0e0;
+            color: #333;
+            cursor: help;
+            position: relative;
+        }
+        
+        .info-icon::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            width: 200px;
+            left: 50%;
+            margin-left: -100px;
+            bottom: 25px;
+            padding: 5px;
+            border-radius: 3px;
+            background-color: #f9f9f9;
+            color: #000;
+            text-align: center;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .info-icon:hover::before {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Optional: Add an arrow to the tooltip */
+        .info-icon::after {
+            content: "";
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #f9f9f9 transparent transparent transparent;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .info-icon:hover::after {
+            visibility: visible;
+            opacity: 1;
+        }          
+
         .image-container {
             display: inline-block;
             margin: 5px;
@@ -92,6 +148,46 @@
                 flex: 0 0 100%;
                 max-width: 100%;
             }
+
+            .metrics-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+            
+            .metrics-table th,
+            .metrics-table td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            
+            .metrics-table tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+            
+            .metrics-table th {
+                padding-top: 12px;
+                padding-bottom: 12px;
+                background-color: #4CAF50;
+                color: white;
+            }
+            
+            /* Responsive table */
+            @media screen and (max-width: 600px) {
+                .metrics-table td {
+                    display: block;
+                    width: 100%;
+                }
+            
+                .metrics-table td:nth-child(1):before {
+                    content: attr(data-label);
+                    float: left;
+                    font-weight: bold;
+                }
+            }
+  
+            
         }
 
     </style>
@@ -105,7 +201,53 @@
 
     <!-- Container for Overall Metrics -->
     <div class="overall-metrics">
-        <p>Overall Metrics will be displayed here.</p>
+        <p>Averaged Metrics for Normal Classified Beams</p>
+        <!-- Assuming this is within the .overall-metrics div -->
+        <table class="metrics-table">
+            <tr>
+                <td>Beam Intensity (amplitude)
+                    <span class="info-icon" data-tooltip="Measured by the peak value of the Gaussian, representing the maximum intensity of the beam.">i</span>
+                </td>
+                <td id="intensity-value"></td>
+            </tr>
+            <tr>
+                <td>Beam Position (centre x)
+                    <span class="info-icon" data-tooltip="Coordinates of the beam's center (X), indicating the position of the beam on the target.">i</span>
+                </td>
+                <td id="center-x-value"></td>
+            </tr>
+            <tr>
+                <td>Beam Position (centre y)
+                    <span class="info-icon" data-tooltip="Coordinates of the beam's center (Y), indicating the position of the beam on the target.">i</span>
+                </td>
+                <td id="center-y-value"></td>
+            </tr>
+            <tr>
+                <td>Beam Size (width x)
+                    <span class="info-icon" data-tooltip="Spread of the beam along the X axis, which determines the beam's coverage area.">i</span>
+                </td>
+                <td id="width-x-value"></td>
+            </tr>
+            <tr>
+                <td>Beam Size (width y)
+                    <span class="info-icon" data-tooltip="Spread of the beam along the Y axis, which determines the beam's coverage area.">i</span>
+                </td>
+                <td id="width-y-value"></td>
+            </tr>
+            <tr>
+                <td>Beam Shape (Aspect Ratio, sigma_x/sigma_y)
+                    <span class="info-icon" data-tooltip="Ratio of the beam's width along the X and Y axes, indicating whether the beam is more circular or elliptical.">i</span>
+                </td>
+                <td id="aspect-ratio-value"></td>
+            </tr>
+            <tr>
+                <td>Beam Orientation (rotation, theta)
+                    <span class="info-icon" data-tooltip="The angle of rotation of the beam's elliptical shape, if it's not perfectly circular.">i</span>
+                </td>
+                <td id="orientation-value"></td>
+            </tr>
+            <!-- Repeat for other metrics, ensuring the id attributes are unique and descriptive -->
+        </table>
     </div>
     
     <!-- Container for Processed Images -->
@@ -165,16 +307,13 @@
         });
 
         function displayOverallMetrics(metrics) {
-            const overallMetricsContainer = document.querySelector('.overall-metrics');
-            let metricsHtml = '<h3>Overall Metrics:</h3><table>';
-        
-            // Generate table rows for each metric
-            for (const [key, value] of Object.entries(metrics)) {
-                metricsHtml += `<tr><td><strong>${formatMetricName(key)}:</strong></td><td>${formatNumber(value)}</td></tr>`;
-            }
-        
-            metricsHtml += '</table>'; // Close the table tag
-            overallMetricsContainer.innerHTML = metricsHtml; // Update the container's HTML
+            document.getElementById('intensity-value').textContent = formatNumber(metrics.intensity) + ' a.u.'; // a.u. stands for arbitrary units
+            document.getElementById('center-x-value').textContent = formatNumber(metrics.center_x) + ' px'; // assuming pixels (px) for position
+            document.getElementById('center-y-value').textContent = formatNumber(metrics.center_y) + ' px';
+            document.getElementById('width-x-value').textContent = formatNumber(metrics.width_x) + ' px';
+            document.getElementById('width-y-value').textContent = formatNumber(metrics.width_y) + ' px';
+            document.getElementById('aspect-ratio-value').textContent = formatNumber(metrics.aspect_ratio); // aspect ratio is unitless
+            document.getElementById('orientation-value').textContent = formatNumber(metrics.orientation) + '°'; // degrees for angular measurements
         }
 
         function displayNoMetricsMessage() {
