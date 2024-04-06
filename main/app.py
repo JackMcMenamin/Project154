@@ -19,15 +19,12 @@ def process_images_endpoint():
     files = request.files.getlist('images')
     if not files:
         logging.warning("No images provided in the request.")
-        return "No images provided", 400
+        return jsonify({"error": "No images provided"}), 400
+    
     processed_images_info = image_processor.process_images(files)
-    # Assuming processed_images_info is a list of dictionaries with relevant file info
-    results = {
-        'images': processed_images_info
-        # 'overall_metrics': { ... }  # Include this if you have overall metrics to send
-    }
-    logging.info(f"Image processing completed. Sending back {len(processed_images_info)} image info.")
-    return jsonify(results)
+    
+    # The processed_images_info should now contain the metrics
+    return jsonify({'images': processed_images_info})
 
 @app.route('/get-intermediate-images')
 def get_intermediate_images():

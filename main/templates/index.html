@@ -104,7 +104,9 @@
     </form>  
 
     <!-- Container for Overall Metrics -->
-    <div class="overall-metrics">Overall Metrics</div>
+    <div class="overall-metrics">
+        <p>Overall Metrics will be displayed here.</p>
+    </div>
     
     <!-- Container for Processed Images -->
     <div class="image-gallery" id="image-gallery"></div>
@@ -135,40 +137,49 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Data received:', data); // Check the structure of `data`
+                    console.log('Data received:', data); // Inspect the structure
                     if (data && data.images) {
                         allImagesData = data.images; // Assign the images to the global variable
+                        console.log('All images data:', allImagesData);
+                        const normalBeamMetrics = allImagesData
+                            .filter(image => image.image_classification === 'normal beam' && image.metrics)
+                            .map(image => image.metrics);
+                        console.log('Normal beam metrics:', normalBeamMetrics);
+                
+                        // Only calculate and display overall metrics if there are normal beam images
+                        if (normalBeamMetrics.length > 0) {
+                            const overallMetrics = calculateOverallMetrics(normalBeamMetrics);
+                            displayOverallMetrics(overallMetrics); // Update the overall metrics box with the calculated averages
+                        } else {
+                            // Display a message indicating that no metrics are available
+                            displayNoMetricsMessage();
+                        }
                         displayProcessedImages(allImagesData);
                     } else {
                         console.error('Invalid or no image data received', data);
                     }
                 })
                 .catch(error => console.error('Error:', error));
+                
             });
         });
 
         function displayOverallMetrics(metrics) {
-            // Assuming `metrics` is an object like { metricName: value, ... }
             const overallMetricsContainer = document.querySelector('.overall-metrics');
-            let metricsHtml = '<h3>Overall Metrics:</h3><table><tr>';
+            let metricsHtml = '<h3>Overall Metrics:</h3><table>';
         
-            // Keep count of the metrics to create a new row after every few metrics
-            let count = 0;
-            const metricsPerRow = 3; // Number of metrics to display per row
-        
-            // Loop through the metrics object and add each metric to the metricsHtml string
+            // Generate table rows for each metric
             for (const [key, value] of Object.entries(metrics)) {
-                if (count % metricsPerRow === 0 && count !== 0) {
-                    metricsHtml += '</tr><tr>'; // End the current row and start a new one
-                }
-                metricsHtml += `<td><strong>${formatMetricName(key)}:</strong> ${value.toFixed(2)}</td>`;
-                count++;
+                metricsHtml += `<tr><td><strong>${formatMetricName(key)}:</strong></td><td>${formatNumber(value)}</td></tr>`;
             }
         
-            metricsHtml += '</tr></table>'; // Close the last row and the table
-        
-            // Update the innerHTML of the overall-metrics container
-            overallMetricsContainer.innerHTML = metricsHtml;
+            metricsHtml += '</table>'; // Close the table tag
+            overallMetricsContainer.innerHTML = metricsHtml; // Update the container's HTML
+        }
+
+        function displayNoMetricsMessage() {
+            const overallMetricsContainer = document.querySelector('.overall-metrics');
+            overallMetricsContainer.innerHTML = '<p>No beam metrics available to display.</p>';
         }
         
         // Helper function to format the metric name into a more human-readable format
@@ -180,9 +191,6 @@
                 .replace(/^./, function(str){ return str.toUpperCase(); }) // Capitalize the first letter
                 // This will turn 'average_blob_area' into 'Average blob area'
         }
-        
-        // Call this function after you receive the data from the backend to update the overall metrics displayed on the frontend
-        displayOverallMetrics(data.overall_metrics);
 
         function displayProcessedImages(images) {
             const gallery = document.getElementById('image-gallery');
@@ -202,6 +210,48 @@
                 gallery.appendChild(imageContainer);
             });
         }
+
+        // Helper function to format numbers to a fixed number of decimal places for display
+        function formatNumber(num) {
+            return num ? num.toFixed(2) : 'N/A';
+        }
+
+        // This function expects an array of beam metrics for normal beam images
+        function calculateOverallMetrics(beamMetricsArray) {
+            // Initialize sums of all metrics
+            const sums = {
+                intensity: 0,
+                center_x: 0,
+                center_y: 0,
+                width_x: 0,
+                width_y: 0,
+                aspect_ratio: 0,
+                orientation: 0
+            };
+
+            // Number of normal beam images
+            const count = beamMetricsArray.length;
+
+            // Sum up all metrics
+            beamMetricsArray.forEach(metrics => {
+                sums.intensity += metrics.intensity;
+                sums.center_x += metrics.center_x;
+                sums.center_y += metrics.center_y;
+                sums.width_x += metrics.width_x;
+                sums.width_y += metrics.width_y;
+                sums.aspect_ratio += metrics.aspect_ratio;
+                sums.orientation += metrics.orientation;
+            });
+
+            // Calculate averages
+            const averages = {};
+            for (const metric in sums) {
+                averages[metric] = sums[metric] / count;
+            }
+
+            return averages;
+        }
+
         
         
         

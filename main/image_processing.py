@@ -3,6 +3,8 @@ import numpy as np
 import os
 import logging
 from file_handling import FileManager
+from metrics_calculations import BeamMetricsCalculator
+
 
 class ImageProcessor:
     def __init__(self):
@@ -92,7 +94,7 @@ class ImageProcessor:
         original_image = cv2.imread(image_path, cv2.IMREAD_COLOR)
         if original_image is None:
             self.logger.error(f"Error loading image from {image_path}")
-            return None
+            return None, None  # Return None for both result and metrics when there's an error
 
         base_name = os.path.splitext(os.path.basename(image_path))[0]
         intermediate_dir = self.file_manager.create_directory_for_image(base_name)
@@ -104,38 +106,48 @@ class ImageProcessor:
 
         # Thresholding
         thresholded_image, final_thresholded_image_path, classification, preserved_brightness_image_path = self.apply_adaptive_thresholding(original_image, gray_image, base_name, intermediate_dir)
+
+        final_image_path = None
+        beam_metrics = None  # Initialize beam metrics here
         
         contour_overlay_image, contour_image_path, classification = self.normal_image_processing(thresholded_image, original_image, base_name, intermediate_dir)
-        
-        # Initialize the path variables
-        blob_extraction_path = None
-        final_image_path = None
 
-        if classification == 'normal beam' and contour_overlay_image is not None:
-            final_image_path = self.combine_contour_with_original(original_image, contour_overlay_image, base_name, intermediate_dir)
-            contour_image_path = final_thresholded_image_path  # For 'normal beam', contour image is the one with drawn contours
+        if classification == 'normal beam':
+            if contour_overlay_image is not None:
+                final_image_path = self.combine_contour_with_original(original_image, contour_overlay_image, base_name, intermediate_dir)
+                contour_image_path = final_thresholded_image_path  # For 'normal beam', contour image is the one with drawn contours
+
+                # Initialize BeamMetricsCalculator with the path to the preserved brightness image
+                beam_metrics_calculator = BeamMetricsCalculator(preserved_brightness_image_path)
+
+                # Calculate the metrics for the image
+                beam_metrics = beam_metrics_calculator.calculate_metrics()
+
+                # Log or print the metrics for debugging
+                self.logger.info(f"Beam metrics for {image_path}: {beam_metrics}")
         else:
             # For 'bad' images:
-            # - Save the thresholded image again, but with the 'contour' suffix to follow the naming convention.
             contour_image_path = self.save_intermediate_image(thresholded_image, intermediate_dir, base_name, 'contour')
-            
-            # - Save a copy of the original image as the final processed image, also following the naming convention.
             final_image_path = os.path.join(intermediate_dir, f"{base_name}_final_processed.png")
             cv2.imwrite(final_image_path, original_image)
-
-        self.logger.info(f"Image processing completed for: {image_path}")
+            beam_metrics = None
 
         result = {
             'original_image_path': original_image_path,
             'gray_image_path': gray_image_path,
             'final_thresholded_image_path': final_thresholded_image_path,
-            'contour_image_path': contour_image_path,  # Adjusted to reflect the final thresholded image for 'bad' images
+            'contour_image_path': contour_image_path,
             'final_image_path': final_image_path,
             'blob_extraction_path': preserved_brightness_image_path,
+            'metrics': beam_metrics,
             'image_classification': classification
         }
-        logging.info(f"Processing result for {image_path}: {result}")
+
+        self.logger.info(f"Image processing completed for: {image_path}")
+        
+        # Return result and beam metrics separately
         return result
+
 
 
     def save_intermediate_image(self, image, dir_path, base_name, suffix):
