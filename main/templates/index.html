@@ -238,7 +238,7 @@
             </tr>
             <tr>
                 <td>Beam Shape (Aspect Ratio, sigma_x/sigma_y)
-                    <span class="info-icon" data-tooltip="Ratio of the beam's width along the X and Y axes, indicating whether the beam is more circular or elliptical.">i</span>
+                    <span class="info-icon" data-tooltip="Ratio of the beam's width along the X and Y axes, indicating whether the beam is more circular or elliptical. A value of 0.5 would mean the width (x) of the beam is half that of its height (y). A value of 1.5 indicates that the beam is 1.5 times wider in the x-direction than in the y-direction. ">i</span>
                 </td>
                 <td id="aspect-ratio-value"></td>
             </tr>
@@ -395,16 +395,16 @@
         }
 
 
-        function navigateToDetailPage(imageData, index) {
-            // Determine the base name correctly based on your imageData structure
-            const baseName = getBaseDir(imageData.original_image_path); // Or another appropriate method
+        function navigateToDetailPage(imageData) {
+            const baseName = getBaseDir(imageData.original_image_path);
+            
+            // Assume imageData.metrics contains the metrics for the image
+            localStorage.setItem('currentImageData', JSON.stringify(imageData));
+            localStorage.setItem('currentImageMetrics', JSON.stringify(imageData.metrics)); // Save the metrics separately if needed
         
-            // Set the currentImage data in localStorage
-            localStorage.setItem('currentImage', JSON.stringify({image: imageData, index: index}));
-        
-            // Redirect to the image details page, optionally passing a query parameter
             window.location.href = `/image-detail?name=${encodeURIComponent(baseName)}`;
-        }            
+        }
+                
         
         function createImageContainer(imageTitle, imageUrl, imageData, index) {
             const imageContainer = document.createElement('div');

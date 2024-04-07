@@ -43,6 +43,39 @@
             margin: 10px;
             vertical-align: top;
         }
+        .metrics-content {
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-top: 10px; /* Aligns with images */
+        }
+        .overall-metrics {
+            background-color: rgba(248, 248, 248, 0.9); /* Adjust transparency as needed */
+            border: 1px solid #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 20px; /* Add space below the box */
+            /* Increase the height or remove it to allow the box to grow with content */
+            min-height: 150px; /* Adjust minimum height as needed */
+            overflow: auto; /* Add scroll if content overflows */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Optional: Adds a subtle shadow */
+        }
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .metrics-table th, .metrics-table td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+        
+        .metrics-table th {
+            background-color: #f8f8f8;
+        }
     </style>
 </head>
 <body>
@@ -52,13 +85,23 @@
         <div id="intermediate-images-container"></div>
     </div>
 
+    <div id="image-metrics-container" class="overall-metrics">
+        <!-- Dynamic table will be inserted here by JavaScript -->
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const imageName = new URLSearchParams(window.location.search).get('name');
+            const imageMetrics = JSON.parse(localStorage.getItem('currentImageMetrics'));
+            console.log('Image Metrics:', imageMetrics); // Add this to debug
+
             const imageTitle = document.getElementById('image-title');
             const intermediateImagesContainer = document.getElementById('intermediate-images-container');
 
-            if (imageName) {
+            if (imageName && imageMetrics) {
+
+                displayImageMetrics(imageMetrics);
+
                 // Update the page title and heading
                 document.title = imageName + " In Depth";
                 imageTitle.textContent = imageName + " In Depth";
@@ -82,10 +125,81 @@
                     imageInfoDiv.textContent = 'Error fetching images.';
                 });
             } else {
-                imageInfoDiv.textContent = 'No image name provided.';
+                const imageInfoDiv = document.getElementById('imageInfoDiv');
+                if (imageInfoDiv) {
+                    imageInfoDiv.textContent = 'No image metrics available.';
+                    console.log('No image metrics available or image name is missing.');
+                }
             }
         });
 
+        function displayImageMetrics(metrics) {
+            const metricsContainer = document.getElementById('image-metrics-container');
+            metricsContainer.innerHTML = ''; // Clear any existing content
+            const table = document.createElement('table');
+            table.className = 'metrics-table';
+        
+            // Define your units for each metric
+            const units = {
+                intensity: 'a.u.',
+                center_x: 'px',
+                center_y: 'px',
+                width_x: 'px',
+                width_y: 'px',
+                aspect_ratio: '', // No unit for ratios
+                orientation: '°'
+            };
+        
+            // Create a header row
+            const headerRow = table.insertRow();
+            const headerCell1 = document.createElement('th');
+            headerCell1.textContent = 'Metric';
+            headerRow.appendChild(headerCell1);
+        
+            const headerCell2 = document.createElement('th');
+            headerCell2.textContent = 'Value';
+            headerRow.appendChild(headerCell2);
+        
+            // Insert metric rows into the table
+            for (const key in metrics) {
+                const value = metrics[key];
+                const row = table.insertRow();
+                const cellMetric = row.insertCell(0);
+                const cellValue = row.insertCell(1);
+                cellMetric.textContent = formatMetricName(key);
+        
+                // Format the value based on its type and append the unit to the value, if defined
+                if (key.includes('center') || key.includes('width')) {
+                    // Pixel values rounded to the nearest integer
+                    cellValue.textContent = Math.round(value) + units[key];
+                } else if (key === 'aspect_ratio') {
+                    // Aspect ratio formatted to one decimal place, without units
+                    cellValue.textContent = parseFloat(value).toFixed(1);
+                } else if (key === 'orientation') {
+                    // Orientation in degrees, formatted to one decimal place
+                    cellValue.textContent = parseFloat(value).toFixed(1) + units[key];
+                } else {
+                    // Other values (like intensity) formatted to one decimal place with units
+                    cellValue.textContent = parseFloat(value).toFixed(1) + units[key];
+                }
+            }
+        
+            metricsContainer.appendChild(table);
+        }
+        
+        
+        
+
+        // Helper function to format the metric name into a more human-readable format
+        function formatMetricName(metricName) {
+            return metricName
+                .replace(/_/g, ' ')         // Replace underscores with spaces
+                .replace(/([A-Z])/g, ' $1') // Add a space before any uppercase letters
+                .toLowerCase()              // Convert to lowercase
+                .replace(/^./, function(str){ return str.toUpperCase(); }) // Capitalize the first letter
+                // This will turn 'average_blob_area' into 'Average blob area'
+        }
+        
         function appendImageWithCaption(container, src, caption) {
             let imageWrapper = document.createElement('div');
             imageWrapper.classList.add('image-container');
