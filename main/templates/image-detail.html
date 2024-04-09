@@ -149,6 +149,7 @@
                 aspect_ratio: '', // No unit for ratios
                 orientation: '°'
             };
+
         
             // Create a header row
             const headerRow = table.insertRow();
@@ -159,9 +160,14 @@
             const headerCell2 = document.createElement('th');
             headerCell2.textContent = 'Value';
             headerRow.appendChild(headerCell2);
+
+            const excludedKeys = new Set(['model_classification']);
         
             // Insert metric rows into the table
             for (const key in metrics) {
+
+                if (excludedKeys.has(key)) continue;
+
                 const value = metrics[key];
                 const row = table.insertRow();
                 const cellMetric = row.insertCell(0);
@@ -182,6 +188,16 @@
                     // Other values (like intensity) formatted to one decimal place with units
                     cellValue.textContent = parseFloat(value).toFixed(1) + units[key];
                 }
+            }
+
+            // Check if model_classification is part of the metrics
+            if (metrics.model_classification) {
+                // Create a row for model_classification
+                const row = table.insertRow();
+                const cellMetric = row.insertCell(0);
+                const cellValue = row.insertCell(1);
+                cellMetric.textContent = "Model Classification";
+                cellValue.textContent = metrics.model_classification; // display the classification result
             }
         
             metricsContainer.appendChild(table);

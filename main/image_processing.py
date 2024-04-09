@@ -4,6 +4,8 @@ import os
 import logging
 from file_handling import FileManager
 from metrics_calculations import BeamMetricsCalculator
+from model import BeamClassifier
+import joblib
 
 
 class ImageProcessor:
@@ -11,6 +13,9 @@ class ImageProcessor:
         self.file_manager = FileManager()
         self.logger = logging.getLogger('ImageProcessor')
         self.logger.setLevel(logging.INFO)
+        self.classifier = BeamClassifier()
+        self.classifier.model = joblib.load('beam_classifier_model.pkl')
+
 
     def process_images(self, files):
         self.logger.info(f"Starting processing of {len(files)} images.")
@@ -130,7 +135,12 @@ class ImageProcessor:
             contour_image_path = self.save_intermediate_image(thresholded_image, intermediate_dir, base_name, 'contour')
             final_image_path = os.path.join(intermediate_dir, f"{base_name}_final_processed.png")
             cv2.imwrite(final_image_path, original_image)
-            beam_metrics = None
+            beam_metrics = {'intensity': 0, 'center_x': 0, 'center_y': 0, 'width_x': 0, 'width_y': 0, 'aspect_ratio': 0, 'orientation': 0}
+            
+        model_classification = self.classifier.classify(final_image_path)
+        
+        # Add the model classification to the beam metrics
+        beam_metrics['model_classification'] = model_classification
 
         result = {
             'original_image_path': original_image_path,
@@ -140,7 +150,8 @@ class ImageProcessor:
             'final_image_path': final_image_path,
             'blob_extraction_path': preserved_brightness_image_path,
             'metrics': beam_metrics,
-            'image_classification': classification
+            'image_classification': classification,
+            'model_classification': model_classification
         }
 
         self.logger.info(f"Image processing completed for: {image_path}")
