@@ -38,6 +38,46 @@
             overflow: auto; /* Add scroll if content overflows */
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Optional: Adds a subtle shadow */
         }
+
+        h1 {
+            text-align: left;
+            margin-top: 20px; /* Adjust as needed */
+        }
+        
+        /* New styles for the buttons row */
+        .buttons-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px; /* Adjust as needed */
+        }
+
+        .form-row {
+            display: flex;
+            justify-content: space-between; /* Aligns the form and the buttons-container on opposite ends */
+            align-items: center; /* Aligns items vertically in the center */
+            margin-top: 20px; /* Or adjust according to your layout */
+        }
+
+        /* Adjust the CSS for the buttons-container */
+        .buttons-container {
+            display: flex; /* Use flexbox for inline alignment */
+            justify-content: flex-end; /* Aligns the buttons to the right */
+            flex-wrap: wrap; /* Wraps the buttons to the next line if space runs out */
+            gap: 10px; /* Optional: adds a gap between the buttons */
+        }
+
+        .file-process-buttons {
+            /* This holds the file input and 'Process Images' button */
+        }
+        
+        .image-stage-buttons {
+            /* This holds the stage buttons and will right-align them */
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px; /* Adjust the space between the buttons as needed */
+        }
+
         input[type="file"] {
             padding: 10px 20px;
             font-size: 18px;
@@ -192,12 +232,31 @@
 
     </style>
 </head>
-<body>
+<body> 
+
+    <!-- Heading at the top -->
     <h1>Categorising and fitting spatially resolved radiation profiles</h1>
-    <form id="upload-form" action="http://localhost:5000/process-images" method="post" enctype="multipart/form-data">
-        <input type="file" name="images" id="file-input" accept="image/*" multiple webkitdirectory>
-        <button type="submit">Process Images</button>
-    </form>  
+
+    <!-- Buttons Row -->
+    <div class="buttons-row">
+        <!-- Left-aligned buttons -->
+        <div class="file-process-buttons">
+            <form id="upload-form" action="http://localhost:5000/process-images" method="post" enctype="multipart/form-data">
+                <input type="file" name="images" id="file-input" accept="image/*" multiple webkitdirectory>
+                <button type="submit">Process Images</button>
+            </form>
+        </div>
+
+        <!-- Right-aligned buttons for image stages -->
+        <div class="image-stage-buttons">
+            <button type="button" onclick="showProcessedImages('original')">Original</button>
+            <button type="button" onclick="showProcessedImages('grayscaled')">Grayscaled</button>
+            <button type="button" onclick="showProcessedImages('thresholded')">Thresholded</button>
+            <button type="button" onclick="showProcessedImages('contour')">Contour</button>
+            <button type="button" onclick="showProcessedImages('processed')">Processed</button>
+            <button type="button" onclick="showProcessedImages('extracted')">Extracted Blob</button>
+        </div>
+    </div>
 
     <!-- Container for Overall Metrics -->
     <div class="overall-metrics">
@@ -251,20 +310,11 @@
             <!-- Repeat for other metrics, ensuring the id attributes are unique and descriptive -->
         </table>
     </div>
-    
-    <!-- Container for Processed Images -->
-    <div class="image-gallery" id="image-gallery"></div>
 
-    <div class="buttons-container">
-        <button type="button" onclick="showProcessedImages('original')">Original</button>
-        <button type="button" onclick="showProcessedImages('grayscaled')">Grayscaled</button>
-        <button type="button" onclick="showProcessedImages('thresholded')">Thresholded</button>
-        <button type="button" onclick="showProcessedImages('contour')">Contour</button>
-        <button type="button" onclick="showProcessedImages('processed')">Processed</button>
-        <button type="button" onclick="showProcessedImages('extracted')">Extracted Blob</button>
-    </div>
-    
-    
+    <!-- Container for Displaying Processed Images -->
+    <div id="image-gallery" class="image-gallery"> </div>
+
+     
     <script>    
         // Define allImagesData in the global scope so it's accessible in showProcessedImages function
         let allImagesData = [];
