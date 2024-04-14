@@ -9,11 +9,10 @@ import os
 
 class BeamClassifier:
     def __init__(self):
-        # Initialize the classifier
+        # Initialise the classifier
         self.model = SVC()
 
     def load_images(self, good_subpath, bad_subpath):
-        # Load all images and label them
         
         # Get the directory where the script is located
         script_dir = os.path.dirname(__file__)

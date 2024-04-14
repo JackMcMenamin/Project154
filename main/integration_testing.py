@@ -19,7 +19,6 @@ class TestImageProcessingIntegration(unittest.TestCase):
         # Assert that the result is not None
         self.assertIsNotNone(processing_result)
         
-        # Further assertions can be made to check if processing_result is as expected
         
 
 class TestImageUploadAndMetrics(unittest.TestCase):
@@ -38,7 +37,6 @@ class TestImageUploadAndMetrics(unittest.TestCase):
         # Check if processing_result is not None
         self.assertIsNotNone(processing_result)
         
-        # Assuming processing_result contains the path to the final processed image
         final_image_path = self.final_image_path
         
         # Pass the path of the processed image to the metrics calculator
@@ -50,20 +48,17 @@ class TestImageUploadAndMetrics(unittest.TestCase):
         self.assertIn('intensity', metrics)
         self.assertIn('center_x', metrics)
         self.assertIn('center_y', metrics)
-        # Add other assertions as per your requirements
 
-        # Optionally, check if the calculated metrics are within expected ranges
         self.assertGreater(metrics['intensity'], 0, "Intensity should be greater than 0")
         self.assertGreater(metrics['center_x'], 0, "Center X should be within the image bounds")
         self.assertGreater(metrics['center_y'], 0, "Center Y should be within the image bounds")
         
 class TestUIIntegration(unittest.TestCase):
     def setUp(self):
-        # Assuming you have a way to simulate the UI interaction
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.test_image_dir = os.path.join(self.script_dir, 'static', 'processed', 'run04_Shot8')
         self.processor = ImageProcessor()
-        self.metrics_calculator = BeamMetricsCalculator(None)  # Path will be set later
+        self.metrics_calculator = BeamMetricsCalculator(None) 
 
     def test_ui_display_of_processed_images_and_metrics(self):
         # Simulate the action of a user uploading an image through the UI
@@ -81,13 +76,9 @@ class TestUIIntegration(unittest.TestCase):
                 metrics = self.metrics_calculator.calculate_metrics()
                 self.assertIsNotNone(metrics, "Metrics calculation failed")
 
-                # Check if the UI can display the processed image and metrics
-                # Here you would normally have UI logic, which might involve rendering the image
-                # and displaying metrics on the screen. Since this is an integration test without an actual UI,
-                # we are assuming that the "display" action is successful if the image exists and metrics are calculated.
                 self.assertTrue(os.path.exists(final_image_path), "Processed image file does not exist")
                 self.assertGreater(metrics['intensity'], 0, "Intensity should be greater than 0")
-                # Add other UI-related assertions as required
+
 
 
 if __name__ == '__main__':

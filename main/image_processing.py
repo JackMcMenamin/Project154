@@ -43,12 +43,10 @@ class ImageProcessor:
         return cnt_scaled
     
     def extract_blob_contents(self, final_processed_image_path, original_image_path, classification):
-        # This method now accepts classification as a parameter
         base_name = os.path.splitext(os.path.basename(original_image_path))[0]
         extracted_blob_path = os.path.join(os.path.dirname(final_processed_image_path), f"{base_name}_extracted_blob.png")
 
         if classification == 'normal beam':
-            # Proceed with extracting the blob from the image with red outline
             final_image = cv2.imread(final_processed_image_path)
             lower_red = np.array([0, 0, 200])
             upper_red = np.array([50, 50, 255])
@@ -113,7 +111,7 @@ class ImageProcessor:
         thresholded_image, final_thresholded_image_path, classification, preserved_brightness_image_path = self.apply_adaptive_thresholding(original_image, gray_image, base_name, intermediate_dir)
 
         final_image_path = None
-        beam_metrics = None  # Initialize beam metrics here
+        beam_metrics = None 
         
         contour_overlay_image, contour_image_path, classification = self.normal_image_processing(thresholded_image, original_image, base_name, intermediate_dir)
 
@@ -122,7 +120,7 @@ class ImageProcessor:
                 final_image_path = self.combine_contour_with_original(original_image, contour_overlay_image, base_name, intermediate_dir)
                 contour_image_path = final_thresholded_image_path  # For 'normal beam', contour image is the one with drawn contours
 
-                # Initialize BeamMetricsCalculator with the path to the preserved brightness image
+                # Initialise BeamMetricsCalculator with the path to the preserved brightness image
                 beam_metrics_calculator = BeamMetricsCalculator(preserved_brightness_image_path)
 
                 # Calculate the metrics for the image
@@ -138,6 +136,8 @@ class ImageProcessor:
             beam_metrics = {'intensity': 0, 'center_x': 0, 'center_y': 0, 'width_x': 0, 'width_y': 0, 'aspect_ratio': 0, 'orientation': 0}
             
         model_classification = self.classifier.classify(final_image_path)
+        
+        model_classification = self.is_beam_abnormal(beam_metrics, model_classification)
         
         # Add the model classification to the beam metrics
         beam_metrics['model_classification'] = model_classification
@@ -156,7 +156,6 @@ class ImageProcessor:
 
         self.logger.info(f"Image processing completed for: {image_path}")
         
-        # Return result and beam metrics separately
         return result
 
 
@@ -182,7 +181,6 @@ class ImageProcessor:
             total_pixels = gray_image.size
             white_area_ratio = (white_pixels / total_pixels) * 100
 
-            # Use the old code's logic for adjusting brightness and classification
             if white_area_ratio < 15:
                 beam_classification = 'image too dark'
                 gray_image = cv2.add(gray_image, enhancement_factor)
@@ -238,7 +236,6 @@ class ImageProcessor:
             # Draw the scaled hull as a comprehensive outline onto the contour_overlay_image
             cv2.drawContours(contour_overlay_image, [scaled_hull], -1, (0, 0, 255), 2)
             
-            # Optionally, mark the centroid of the hull
             M = cv2.moments(hull)
             if M["m00"] != 0:
                 cx, cy = int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])
@@ -264,7 +261,7 @@ class ImageProcessor:
 
         largest_contour = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(largest_contour)
-        if contour_area < min_contour_area:  # self.min_contour_area to be defined based on your images
+        if contour_area < min_contour_area:
             return 'bad image'
         
         return 'normal beam'
@@ -302,10 +299,38 @@ class ImageProcessor:
         color_preserved_thresholded_image_path = self.save_intermediate_image(color_preserved_thresholded_image, intermediate_dir, base_name, 'color_preserved_threshold')
         
         return color_preserved_thresholded_image, color_preserved_thresholded_image_path
+    
+    def is_beam_abnormal(self, beam_metrics, model_classification):
+        # Define thresholds for abnormality
+        MIN_AREA_MM = 30  # Minimum acceptable area in square millimeters
+        MAX_AREA_MM = 200  # Maximum acceptable area in square millimeters
+        MIN_ASPECT_RATIO = 0.6
+        MAX_ASPECT_RATIO = 1.4
+
+        # Return immediately if the model classification is inconclusive
+        if model_classification == "inconclusive":
+            return "inconclusive"
+
+        # Proceed with checks only if the classification is normal
+        if model_classification == "normal distribution":
+            # Check if the area is abnormally small or large
+            if beam_metrics['area_mm'] < MIN_AREA_MM:
+                model_classification = "Abnormal - Minimal Area"
+            elif beam_metrics['area_mm'] > MAX_AREA_MM:
+                model_classification = "Abnormal - Maximum Area"
+            elif beam_metrics['aspect_ratio'] < MIN_ASPECT_RATIO:
+                model_classification = "Abnormal - Skewed Vertically"
+            elif beam_metrics['aspect_ratio'] > MAX_ASPECT_RATIO:
+                model_classification = "Abnormal - Skewed Horizontally"
+            else:
+                model_classification = "normal distribution"
+
+        # Return the updated classification
+        return model_classification
+        
 
 
     def save_final_processed_image(self, image, dir_path, base_name):
-    # Assuming 'image' is the image with contours drawn on it
         return self.save_intermediate_image(image, dir_path, base_name, 'final_processed')
     
     def check_for_red_lines(self, contour_overlay_image):
@@ -316,7 +341,6 @@ class ImageProcessor:
         total_pixels = contour_overlay_image.shape[0] * contour_overlay_image.shape[1]
         red_pixel_ratio = (red_pixels / total_pixels) * 100
 
-        # You may need to adjust the percentage based on your specific case.
         if red_pixel_ratio < 1:  # If less than 1% of the image contains red lines, it might be a bad image.
             return False
         return True

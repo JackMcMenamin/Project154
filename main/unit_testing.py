@@ -61,7 +61,6 @@ class TestImageProcessor(unittest.TestCase):
         thresholded_image, _, _, _ = self.processor.apply_adaptive_thresholding(
             self.test_image, gray_image, base_name, intermediate_dir
         )
-        # Now assert on the thresholded_image properties
         self.assertEqual(thresholded_image.ndim, 2, "Thresholding failed: Resultant image is not 2D.")
 
     def test_contour_detection(self):
@@ -111,14 +110,12 @@ class TestAdaptiveThresholding(unittest.TestCase):
 class TestBlobExtraction(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Define test_image_path for this test class
         cls.script_dir = os.path.dirname(os.path.abspath(__file__))
         cls.test_image_path = os.path.join(cls.script_dir, 'static', 'test', 'full_black.png')
         
     def test_blob_extraction_bad_classification(self):
         processor = ImageProcessor()
         bad_classification = 'bad image'
-        # Assume we have a test image already saved
         extracted_blob_path = processor.extract_blob_contents(self.test_image_path, self.test_image_path, bad_classification)
         extracted_blob = cv2.imread(extracted_blob_path, cv2.IMREAD_COLOR)
         original_image = cv2.imread(self.test_image_path, cv2.IMREAD_COLOR)

@@ -7,6 +7,7 @@ from mpl_toolkits.mplot3d import Axes3D
 class BeamMetricsCalculator:
     def __init__(self, image_path):
         self.image_path = image_path
+        self.pixel_to_mm_ratio = 0.10671
 
     def gaussian(self, x, y, amplitude, xo, yo, sigma_x, sigma_y, theta):
         xo = float(xo)
@@ -47,7 +48,7 @@ class BeamMetricsCalculator:
     def calculate_metrics(self):
         processed_data = self.load_and_normalize_image()
         fitted_params = self.fit_gaussian(processed_data)
-        return {
+        metrics = {
             'intensity': fitted_params[0],
             'center_x': fitted_params[1],
             'center_y': fitted_params[2],
@@ -56,6 +57,16 @@ class BeamMetricsCalculator:
             'aspect_ratio': fitted_params[3] / fitted_params[4],
             'orientation': np.degrees(fitted_params[5]) % 360
         }
+        
+        # Convert pixel values to mm and append them to the metrics dictionary
+        for key in ['center_x', 'center_y', 'width_x', 'width_y']:
+            metrics[key + '_mm'] = metrics[key] * self.pixel_to_mm_ratio
+            
+        # Calculate the area in pixel^2 and append it to the metrics dictionary
+        metrics['area'] = np.pi * (metrics['width_x'] / 2) * (metrics['width_y'] / 2)
+        metrics['area_mm'] = np.pi * (metrics['width_x_mm'] / 2) * (metrics['width_y_mm'] / 2)
+        
+        return metrics
         
     def visualize_fit(self, data, fitted_params):
         # Create a meshgrid to plot the data

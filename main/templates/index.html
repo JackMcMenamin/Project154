@@ -5,77 +5,69 @@
     <title>Categorising and fitting spatially resolved radiation profiles</title>
     <style>
         body { 
-            /* Add these lines for the background image, adjust the path as needed */
             background-image: url('/static/background.jpg');
             background-size: cover;
             background-repeat: no-repeat;
             background-attachment: fixed;
             background-position: center;
-
-            /* Your existing styles */
             font-family: Arial, sans-serif;
          }
         .row { display: flex; justify-content: center; align-items: flex-start; margin-top: 20px; }
         .column { flex: 1; padding: 5px; text-align: center; }
         img { max-width: 100%; max-height: 400px; }
-        button { padding: 10px 20px; font-size: 18px; margin-bottom: 10px; } /* Increased button size */
+        button { padding: 10px 20px; font-size: 18px; margin-bottom: 10px; }
         .metrics-content {
             background-color: #f8f8f8;
             border: 1px solid #ccc;
             padding: 20px;
             text-align: center;
-            margin-top: 10px; /* Aligns with images */
+            margin-top: 10px;
         }
         .overall-metrics {
-            background-color: rgba(248, 248, 248, 0.9); /* Adjust transparency as needed */
+            background-color: rgba(248, 248, 248, 0.9);
             border: 1px solid #ccc;
             padding: 20px;
             text-align: center;
             margin-top: 20px;
-            margin-bottom: 20px; /* Add space below the box */
-            /* Increase the height or remove it to allow the box to grow with content */
-            min-height: 150px; /* Adjust minimum height as needed */
-            overflow: auto; /* Add scroll if content overflows */
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Optional: Adds a subtle shadow */
+            margin-bottom: 20px;
+            min-height: 150px;
+            overflow: auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         }
 
         h1 {
             text-align: left;
-            margin-top: 20px; /* Adjust as needed */
+            margin-top: 20px;
         }
         
-        /* New styles for the buttons row */
         .buttons-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 20px; /* Adjust as needed */
+            margin-top: 20px;
         }
 
         .form-row {
             display: flex;
-            justify-content: space-between; /* Aligns the form and the buttons-container on opposite ends */
-            align-items: center; /* Aligns items vertically in the center */
-            margin-top: 20px; /* Or adjust according to your layout */
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
         }
 
-        /* Adjust the CSS for the buttons-container */
         .buttons-container {
-            display: flex; /* Use flexbox for inline alignment */
-            justify-content: flex-end; /* Aligns the buttons to the right */
-            flex-wrap: wrap; /* Wraps the buttons to the next line if space runs out */
-            gap: 10px; /* Optional: adds a gap between the buttons */
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .file-process-buttons {
-            /* This holds the file input and 'Process Images' button */
         }
         
         .image-stage-buttons {
-            /* This holds the stage buttons and will right-align them */
             display: flex;
             justify-content: flex-end;
-            gap: 10px; /* Adjust the space between the buttons as needed */
+            gap: 10px;
         }
 
         input[type="file"] {
@@ -121,7 +113,6 @@
             opacity: 1;
         }
         
-        /* Optional: Add an arrow to the tooltip */
         .info-icon::after {
             content: "";
             position: absolute;
@@ -144,39 +135,38 @@
         .image-container {
             display: inline-block;
             margin: 5px;
-            width: calc(20% - 10px); /* Adjust width to fit 5 images per row, accounting for margin */
-            vertical-align: top; /* Align the tops of the images */
+            width: calc(20% - 10px);
+            vertical-align: top;
         }
 
         .image-container img {
-            cursor: pointer; /* This will change the cursor to the 'hand' pointer when hovering over the images */
+            cursor: pointer;
         }        
         
         .image-name {
             display: block;
-            margin-top: 5px; /* Space between the image and the name */
-            font-size: 12px; /* Adjust the size as needed */
-            color: #666; /* A lighter text color for the names */
-            text-align: center; /* Center-align the text */
-            margin-bottom: 5px; /* Add some space between the image name and the image */
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 5px;
         }              
         
         .overall-metrics table {
-            width: 100%; /* Make the table take the full width of its container */
-            border-collapse: collapse; /* Collapse borders */
-            table-layout: fixed; /* Optional: helps with equal width columns */
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
         }
         
         .overall-metrics td {
-            padding: 10px; /* Add some padding around each cell */
-            border: 1px solid #ccc; /* Add a border to each cell */
-            text-align: left; /* Align text to the left */
-            vertical-align: top; /* Align the content at the top of the cell */
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+            vertical-align: top; 
         }
         
         @media (max-width: 800px) {
             .image-gallery img {
-                /* For smaller screens, each image can take more space, like 50% of the container width */
                 flex: 0 0 calc(50% - 10px);
                 max-width: calc(50% - 10px);
             }
@@ -184,7 +174,6 @@
         
         @media (max-width: 500px) {
             .image-gallery img {
-                /* For even smaller screens, each image can take full width of the container */
                 flex: 0 0 100%;
                 max-width: 100%;
             }
@@ -234,7 +223,6 @@
 </head>
 <body> 
 
-    <!-- Heading at the top -->
     <h1>Categorising and fitting spatially resolved radiation profiles</h1>
 
     <!-- Buttons Row -->
@@ -261,7 +249,6 @@
     <!-- Container for Overall Metrics -->
     <div class="overall-metrics">
         <p>Averaged Metrics for Normal Classified Beams</p>
-        <!-- Assuming this is within the .overall-metrics div -->
         <table class="metrics-table">
             <tr>
                 <td>Beam Intensity (amplitude)
@@ -272,28 +259,28 @@
                 </td>
             </tr>
             <tr>
-                <td>Beam Position (centre x)
-                    <span class="info-icon" data-tooltip="Coordinates of the beam's center (X), indicating the position of the beam on the target.">i</span>
+                <td>Beam Position (centre x in mm)
+                    <span class="info-icon" data-tooltip="Horizontal Coordinates of the beam's center (X), in mm (L->R), indicating the position of the beam on the target.">i</span>
                 </td>
-                <td id="center-x-value"></td>
+                <td id="center-x-value-mm"></td>
             </tr>
             <tr>
-                <td>Beam Position (centre y)
-                    <span class="info-icon" data-tooltip="Coordinates of the beam's center (Y), indicating the position of the beam on the target.">i</span>
+                <td>Beam Position (centre y in mm)
+                    <span class="info-icon" data-tooltip="Vertical Coordinates of the beam's center (Y), in mm (Bottom to Top).indicating the position of the beam on the target.">i</span>
                 </td>
-                <td id="center-y-value"></td>
+                <td id="center-y-value-mm"></td>
             </tr>
             <tr>
-                <td>Beam Size (width x)
-                    <span class="info-icon" data-tooltip="Spread of the beam along the X axis, which determines the beam's coverage area.">i</span>
+                <td>Beam Size (width x in mm)
+                    <span class="info-icon" data-tooltip="Horizontal width of the beam along the X axis, in mm, which determines the beam's coverage area.">i</span>
                 </td>
-                <td id="width-x-value"></td>
+                <td id="width-x-value-mm"></td>
             </tr>
             <tr>
-                <td>Beam Size (width y)
-                    <span class="info-icon" data-tooltip="Spread of the beam along the Y axis, which determines the beam's coverage area.">i</span>
+                <td>Beam Size (width y in mm)
+                    <span class="info-icon" data-tooltip="Vertical width of the beam along the Y axis, in mm, which determines the beam's coverage area.">i</span>
                 </td>
-                <td id="width-y-value"></td>
+                <td id="width-y-value-mm"></td>
             </tr>
             <tr>
                 <td>Beam Shape (Aspect Ratio, sigma_x/sigma_y)
@@ -307,7 +294,12 @@
                 </td>
                 <td id="orientation-value"></td>
             </tr>
-            <!-- Repeat for other metrics, ensuring the id attributes are unique and descriptive -->
+            <tr>
+                <td>Beam Area (in mm²)
+                    <span class="info-icon" data-tooltip="The calculated area of the beam in square millimeters.">i</span>
+                </td>
+                <td id="area-mm-value"></td>
+            </tr>            
         </table>
     </div>
 
@@ -316,7 +308,6 @@
 
      
     <script>    
-        // Define allImagesData in the global scope so it's accessible in showProcessedImages function
         let allImagesData = [];
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -331,7 +322,7 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Data received:', data); // Inspect the structure
+                    console.log('Data received:', data);
                     if (data && data.images) {
                         allImagesData = data.images; // Assign the images to the global variable
                         console.log('All images data:', allImagesData);
@@ -360,12 +351,17 @@
 
         function displayOverallMetrics(metrics) {
             document.getElementById('intensity-value').textContent = formatNumber(metrics.intensity) + ' a.u.'; // a.u. stands for arbitrary units
-            document.getElementById('center-x-value').textContent = formatNumber(metrics.center_x) + ' px'; // assuming pixels (px) for position
-            document.getElementById('center-y-value').textContent = formatNumber(metrics.center_y) + ' px';
-            document.getElementById('width-x-value').textContent = formatNumber(metrics.width_x) + ' px';
-            document.getElementById('width-y-value').textContent = formatNumber(metrics.width_y) + ' px';
+            //document.getElementById('center-x-value').textContent = formatNumber(metrics.center_x) + ' px'; // assuming pixels (px) for position
+            //document.getElementById('center-y-value').textContent = formatNumber(metrics.center_y) + ' px';
+            //document.getElementById('width-x-value').textContent = formatNumber(metrics.width_x) + ' px';
+            //document.getElementById('width-y-value').textContent = formatNumber(metrics.width_y) + ' px';
             document.getElementById('aspect-ratio-value').textContent = formatNumber(metrics.aspect_ratio); // aspect ratio is unitless
             document.getElementById('orientation-value').textContent = formatNumber(metrics.orientation) + '°'; // degrees for angular measurements
+            document.getElementById('center-x-value-mm').textContent = formatNumber(metrics.center_x_mm) + ' mm';
+            document.getElementById('center-y-value-mm').textContent = formatNumber(metrics.center_y_mm) + ' mm';
+            document.getElementById('width-x-value-mm').textContent = formatNumber(metrics.width_x_mm) + ' mm';
+            document.getElementById('width-y-value-mm').textContent = formatNumber(metrics.width_y_mm) + ' mm';
+            document.getElementById('area-mm-value').textContent = formatNumber(metrics.area_mm) + ' mm²';
         }
 
         function displayNoMetricsMessage() {
@@ -379,7 +375,7 @@
                 .replace(/_/g, ' ')         // Replace underscores with spaces
                 .replace(/([A-Z])/g, ' $1') // Add a space before any uppercase letters
                 .toLowerCase()              // Convert to lowercase
-                .replace(/^./, function(str){ return str.toUpperCase(); }) // Capitalize the first letter
+                .replace(/^./, function(str){ return str.toUpperCase(); }) // Capitalise the first letter
                 // This will turn 'average_blob_area' into 'Average blob area'
         }
 
@@ -390,7 +386,7 @@
             // Sort the images by base directory name
             const sortedImages = sortImagesByBaseDir(images);
         
-            sortedImages.forEach((imageData, index) => { // Ensure 'index' is being passed here as the second argument
+            sortedImages.forEach((imageData, index) => {
                 const baseDir = getBaseDir(imageData.original_image_path);
                 const imageClassification = imageData.image_classification;
         
@@ -402,7 +398,6 @@
             });
         }
         
-
         // Helper function to format numbers to a fixed number of decimal places for display
         function formatNumber(num) {
             return num ? num.toFixed(2) : 'N/A';
@@ -410,7 +405,7 @@
 
         // This function expects an array of beam metrics for normal beam images
         function calculateOverallMetrics(beamMetricsArray) {
-            // Initialize sums of all metrics
+            // Initialise sums of all metrics
             const sums = {
                 intensity: 0,
                 center_x: 0,
@@ -418,7 +413,12 @@
                 width_x: 0,
                 width_y: 0,
                 aspect_ratio: 0,
-                orientation: 0
+                orientation: 0,
+                center_x_mm: 0,
+                center_y_mm: 0,
+                width_x_mm: 0,
+                width_y_mm: 0,
+                area_mm: 0
             };
 
             // Number of normal beam images
@@ -433,6 +433,11 @@
                 sums.width_y += metrics.width_y;
                 sums.aspect_ratio += metrics.aspect_ratio;
                 sums.orientation += metrics.orientation;
+                sums.center_x_mm += metrics.center_x_mm;
+                sums.center_y_mm += metrics.center_y_mm;
+                sums.width_x_mm += metrics.width_x_mm;
+                sums.width_y_mm += metrics.width_y_mm;
+                sums.area_mm += metrics.area_mm;
             });
 
             // Calculate averages
@@ -490,8 +495,8 @@
         
 
         function getBaseDir(path) {
-            const parts = path.split('\\'); // or use path.split('/') on non-Windows systems
-            return parts[parts.length - 2]; // The directory name is the second last part of the path
+            const parts = path.split('\\');
+            return parts[parts.length - 2];
         }
 
         function showProcessedImages(stage) {
@@ -504,7 +509,6 @@
                 const baseDir = getBaseDir(imageData.original_image_path);
                 let newFileName;
         
-                // Adjust the case to match the stages you have, like 'original', 'grayscaled', etc.
                 switch (stage) {
                     case 'original':
                         newFileName = `${baseDir}_original.png`;
@@ -533,7 +537,6 @@
         }
 
         function sortImagesByBaseDir(images) {
-            // This assumes your base names are in the format "runXX_ShotYY"
             return images.sort((a, b) => {
                 // Extract the shot number from the base directory name
                 const shotNumberA = parseInt(a.original_image_path.match(/Shot(\d+)/i)[1], 10);
@@ -543,9 +546,6 @@
             });
         }
         
-          
-        
-
     </script>
     
 </body>
